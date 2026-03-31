@@ -1,0 +1,24 @@
+name: "vichaar-agentic-eval"
+description: "A multi-agent decision evaluation environment for ethics, profitability, and public relations trade-offs."
+version: 1.0.0
+entry_point: "env:Env"
+
+tasks:
+  - id: "easy"
+    name: "Software Update"
+    description: "Low-risk optimization with clear benefits."
+    difficulty: 1
+    
+  - id: "medium"
+    name: "Personalized Targeting"
+    description: "Privacy vs Profit conflict requiring balanced deliberation."
+    difficulty: 3
+    
+  - id: "hard"
+    name: "Resource Extraction"
+    description: "Extreme risk and high-return litigation/extraction conflict."
+    difficulty: 5
+
+meta:
+  tags: ["agentic", "multi-agent", "ethics", "business"]
+  author: "Hridyansh"

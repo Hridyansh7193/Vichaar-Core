@@ -15,28 +15,31 @@ env_instance = Env()
 @app.post("/run")
 async def run():
     """
-    Triggers a full simulation:
+    Triggers a full simulation using the stepped Env API:
     1. Resets the state (picks a scenario)
-    2. Runs the agent workflow (Round 1 + Round 2 + Final)
-    3. Grades the decision using the reward function
-    4. Returns the full deliberation record
+    2. Runs 2 deliberation rounds
+    3. Runs the final decision
+    4. Returns the full integrated result
     """
-    # Initialize the scenario and metrics
-    state = env_instance.reset()
+    # 1. Reset
+    obs = env_instance.reset()
     
-    # Run the full deliberative workflow (two rounds + final)
-    # This must be awaited since the agents call OpenAI LLMs
-    state, final_output = await env_instance.run_episode()
+    # 2. Deliberation Rounds
+    for _ in range(2):
+        await env_instance.step({"action_type": "step"})
     
-    # Evaluate the result using the grader
-    reward = compute_reward(state, final_output)
+    # 3. Final Decision and Scoring
+    # Step automatically calculates final reward based on task_id
+    response = await env_instance.step({"action_type": "finalize"})
+    
+    # Get the final state for the response record
+    state = env_instance.state()
 
-    # Return the clean, flattened result required
     return {
         "scenario": state["scenario"],
         "history": state["history"],
-        "final_decision": final_output,
-        "reward": reward
+        "final_decision": response.info.get("final_decision"),
+        "reward": response.reward
     }
 
 @app.get("/health")
