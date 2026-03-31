@@ -1,13 +1,12 @@
-import os
 import json
 import asyncio
 import logging
 from typing import Dict, Any, Literal
 from pydantic import BaseModel
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
+import config
 
-load_dotenv()
+# No need to call load_dotenv here since config.py handles it
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ You must ONLY output valid JSON.
   "agent": "profit",
   "decision": "launch | modify | reject",
   "justification": "string",
-  "risk_assessment": { "legal": "...", "reputation": "...", "environment": "..." },
+  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
   "confidence": float
 }"""
 
@@ -61,7 +60,7 @@ You must ONLY output valid JSON.
   "agent": "pr",
   "decision": "launch | modify | reject",
   "justification": "string",
-  "risk_assessment": { "legal": "...", "reputation": "...", "environment": "..." },
+  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
   "confidence": float
 }"""
 
@@ -72,7 +71,7 @@ You must ONLY output valid JSON.
   "agent": "ethics",
   "decision": "launch | modify | reject",
   "justification": "string",
-  "risk_assessment": { "legal": "...", "reputation": "...", "environment": "..." },
+  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
   "confidence": float
 }"""
 
@@ -91,17 +90,23 @@ You must ONLY output valid JSON.
 # ==========================================
 
 # Initialize the Async OpenAI Client
-# Note: Ensure you have OPENAI_API_KEY set in your environment!
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", "your-sk-key-here"))
+# For OpenRouter, we need to set the base_url.
+client = AsyncOpenAI(
+    api_key=config.OPENAI_API_KEY,
+    base_url=config.OPENAI_API_BASE
+)
 
 async def call_llm(prompt: str) -> str:
     """Async Wrapper for the LLM API using OpenAI's JSON mode."""
+    # Use the model name from config
+    model_name = config.MODEL_NAME
+    
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",  # Using a fast model for agentic workflow
+        model=model_name,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,       # Low temp for structured adherence
         max_tokens=350,
-        response_format={"type": "json_object"} # Guarantees valid JSON layout
+        response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
 
