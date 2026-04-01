@@ -1,0 +1,62 @@
+# How the System Works
+
+This document explains the full workflow of Vichaar-Core and how its multi-agent environment simulates decision-making.
+
+## 1. What the Environment Simulates
+Vichaar-Core simulates complex business conflicts where maximizing profit could negatively affect public sentiment, the environment, or legal risk. It creates scenarios (like dangerous mining or targeted advertising) and lets specialized agents try to solve the conflict.
+
+## 2. What the State Contains
+The environment state contains the exact position of the company at any point in time:
+- Scenario: A text description of the current task.
+- Metrics: Values from 0 to 1 representing expected profit, public sentiment, legal risk, environmental impact, and cost. 
+- History: A trail of previous actions taken.
+- Step Count: What turn the simulation is currently on.
+
+## 3. How Agents Work
+There are 5 specific agents, each using a Large Language Model (LLM) and representing a different department:
+- Profit Agent: Tries to maximize revenue.
+- PR Agent: Focuses on public sentiment.
+- Ethics Agent: Prioritizes environmental impact and fairness.
+- Legal Agent: Tries to limit legal risk.
+- Risk Agent: Tries to balance everything.
+When queried, they analyze the State and pick the best action from their unique perspective.
+
+## 4. How Actions are Chosen
+At each step, all 5 agents vote simultaneously. Their votes are counted, and the action with the most votes is chosen as the final action.
+
+## 5. How the Environment Updates State
+Once an action is chosen, the environment deterministically adjusts the state metrics. For instance, if the action is "launch_fast", profit and legal risk increase, but public sentiment decreases. These values are then "clamped" to ensure they never fall below 0.0 or rise above 1.0.
+
+## 6. How Reward is Calculated
+After the metrics change, the system grades the outcome. The base formula is:
+`Reward = (0.4 * Profit) - (0.3 * Legal Risk) - (0.2 * Env Impact) + (0.1 * Public Sentiment)`
+This value is further adjusted depending on the specific task (e.g., punishing excessive risk in easy scenarios or extreme risk in hard ones) and finally clamped between 0 and 1. 
+
+## 7. Full Workflow Loop (Reset → Step → Done)
+1. Reset: The user asks to start an episode. The environment loads the initial scenario and fresh metrics for a selected task (easy, medium, hard), and returns the `observation`.
+2. Step: 
+   - The current `observation` is given to the 5 agents.
+   - The agents vote, producing a single final `action`.
+   - The environment applies the `action` to update its internal metrics.
+   - The system calculates the `reward` for this new state.
+   - The new `observation`, the `reward`, an informational dictionary, and a `done` flag are returned.
+3. Done: This process repeats until the `step_count` reaches the max limit (3). At that point, `done` becomes `true`, and the simulation is formally complete.
+
+---
+
+## Component Explanation
+
+### env.py
+This is the heart of the RL environment. It holds the core `Env` class, manages the internal state (`self._state`), defines how actions physically alter the metrics deterministically, and implements the standard OpenEnv `reset()`, `step()`, and `state()` loop.
+
+### multi_agent.py
+This integrates the external LLM intelligence. It defines the personas of the 5 agents, queries the LLM API using the state observation, aggregates their votes into a single deterministic action string, and returns it to be enacted on the environment.
+
+### grader.py
+This script manages the reward calculations. It imports the metrics from the environment's state, weights them according to the mathematical formula, applies task-specific heuristics, and ensures a proper 0-1 reward scale is returned.
+
+### inference.py
+This is the offline testing pipeline. It loops through all defined tasks (easy, medium, hard), resets the environment, and runs a manual `step()` loop until the episode triggers `done`, allowing for local testing of the multi-agent decision quality offline.
+
+### app.py
+This is the API server. Using FastAPI and strictly typed Pydantic models, it wraps `env.py` and `multi_agent.py` to allow HTTP users to remotely interact with the environment via `POST /reset`, `POST /step`, and `POST /run` HTTP endpoints, ensuring all I/O precisely matches OpenEnv API expectations.

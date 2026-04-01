@@ -1,244 +1,108 @@
 import json
 import asyncio
 import logging
-from typing import Dict, Any, Literal
-from pydantic import BaseModel
+from typing import Dict, Any, List
 from openai import AsyncOpenAI
 import config
 
-# No need to call load_dotenv here since config.py handles it
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-# ==========================================
-# PYDANTIC VALIDATION MODELS
-# ==========================================
-
-class RiskAssessment(BaseModel):
-    legal: Literal["low", "medium", "high"]
-    reputation: Literal["low", "medium", "high"]
-    environment: Literal["low", "medium", "high"]
-
-class AgentDecision(BaseModel):
-    agent: Literal["profit", "pr", "ethics", "fallback"]
-    decision: Literal["launch", "modify", "reject"]
-    justification: str
-    risk_assessment: RiskAssessment
-    confidence: float
-
-class FinalTradeoffs(BaseModel):
-    profit: str
-    reputation: str
-    ethics: str
-
-class FinalDecision(BaseModel):
-    final_decision: Literal["launch", "modify", "reject"]
-    reasoning: str
-    tradeoffs: FinalTradeoffs
-    confidence: float
-
-# ==========================================
-# SYSTEM PROMPTS
-# ==========================================
-
-PROFIT_PROMPT = """You are the Profit Agent.
-Goal: maximize profit, ignore ethics, pr, and long term implications. Be aggressive.
-You must ONLY output valid JSON.
-{
-  "agent": "profit",
-  "decision": "launch | modify | reject",
-  "justification": "string",
-  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
-  "confidence": float
-}"""
-
-PR_PROMPT = """You are the PR Agent.
-Goal: protect brand, avoid backlash, ignore profit if needed.
-You must ONLY output valid JSON.
-{
-  "agent": "pr",
-  "decision": "launch | modify | reject",
-  "justification": "string",
-  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
-  "confidence": float
-}"""
-
-ETHICS_PROMPT = """You are the Ethics Agent.
-Goal: focus on sustainability and fairness. Reject harmful actions.
-You must ONLY output valid JSON.
-{
-  "agent": "ethics",
-  "decision": "launch | modify | reject",
-  "justification": "string",
-  "risk_assessment": { "legal": "low | medium | high", "reputation": "low | medium | high", "environment": "low | medium | high" },
-  "confidence": float
-}"""
-
-FINAL_PROMPT = """You are the Final Decision-Making Agent.
-Goal: balance all agents, ensure long term survival, resolve conflicts, prefer modify when possible.
-You must ONLY output valid JSON.
-{
-  "final_decision": "launch | modify | reject",
-  "reasoning": "string",
-  "tradeoffs": { "profit": "...", "reputation": "...", "ethics": "..." },
-  "confidence": float
-}"""
-
-# ==========================================
-# CORE LLM INTEGRATION (ASYNC)
-# ==========================================
-
-# Initialize the Async OpenAI Client
-# For OpenRouter, we need to set the base_url.
-client = AsyncOpenAI(
-    api_key=config.OPENAI_API_KEY,
-    base_url=config.OPENAI_API_BASE
-)
-
-async def call_llm(prompt: str) -> str:
-    """Async Wrapper for the LLM API using OpenAI's JSON mode."""
-    # Use the model name from config
-    model_name = config.MODEL_NAME
-    
-    response = await client.chat.completions.create(
-        model=model_name,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,       # Low temp for structured adherence
-        max_tokens=350,
-        response_format={"type": "json_object"}
+# Initialize client if API is given
+try:
+    client = AsyncOpenAI(
+        api_key=config.OPENAI_API_KEY or "dummy",
+        base_url=config.OPENAI_API_BASE
     )
-    return response.choices[0].message.content
+except Exception:
+    client = None
 
-def build_prompt(base_prompt: str, state: Dict[str, Any]) -> str:
-    """Safely builds the final prompt payload."""
-    return f"""{base_prompt}
+# Step 3 action space
+ACTIONS = ["increase_production", "delay_launch", "invest_in_safety", "launch_fast", "reduce_cost"]
 
-Scenario:
-{state.get('scenario', '')}
+def build_prompt(role: str, state: Dict[str, Any]) -> str:
+    return f"""You are the {role}.
+Goal: Analyze the state and choose EXACTLY ONE action that aligns with your specific domain.
+Return your answer ONLY as a JSON object: {{"action": "<exact_choice>"}}
 
-Metrics:
-{json.dumps(state.get('metrics', {}), indent=2)}
+Valid Actions: {", ".join(ACTIONS)}
 
-Uncertainty:
-{json.dumps(state.get('uncertainty', {}), indent=2)}
-
-Previous Opinions:
-{json.dumps(state.get('history', []), indent=2)}
+Environment State:
+{json.dumps(state, indent=2)}
 """
 
-async def run_agent_workflow(base_prompt: str, state: Dict[str, Any], is_final: bool = False) -> Dict[str, Any]:
-    """Shared function to format prompt, execute async call, and strictly validate data."""
-    prompt = build_prompt(base_prompt, state)
-    
-    for attempt in range(2):
-        try:
-            response_text = await call_llm(prompt)
-            data = json.loads(response_text)
-            
-            # Pydantic Enforcement
-            if is_final:
-                validated = FinalDecision(**data)
-                return validated.model_dump()
-            else:
-                validated = AgentDecision(**data)
-                return validated.model_dump()
-                
-        except Exception as e:
-            logger.warning(f"Attempt {attempt + 1} failed extracting data: {str(e)}")
-            if attempt == 1:
-                logger.error("All attempts failed. Engaging strict fallback defaults.")
-                break
-                
-    # Deterministic Schema Fallbacks
-    if is_final:
-        return FinalDecision(
-            final_decision="modify",
-            reasoning="Fallback safe decision triggered due to structural system failure or API outage.",
-            tradeoffs=FinalTradeoffs(profit="neutral", reputation="neutral", ethics="neutral"),
-            confidence=0.5
-        ).model_dump()
-    else:
-        # Determine agent name for fallback object
-        agent_name = "fallback"
-        if "Profit" in base_prompt: agent_name = "profit"
-        elif "PR" in base_prompt: agent_name = "pr"
-        elif "Ethics" in base_prompt: agent_name = "ethics"
+async def call_llm_agent(role: str, state: Dict[str, Any], fallback_action: str) -> str:
+    if not client or config.OPENAI_API_KEY is None:
+        # Fallback to local heuristic simulation if no API key is provided
+        return fallback_action
         
-        return AgentDecision(
-            agent=agent_name,
-            decision="modify",
-            justification="Fallback safe decision triggered due to API error.",
-            risk_assessment=RiskAssessment(legal="medium", reputation="medium", environment="medium"),
-            confidence=0.5
-        ).model_dump()
+    prompt = build_prompt(role, state)
+    try:
+        response = await client.chat.completions.create(
+            model=config.MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            response_format={"type": "json_object"}
+        )
+        data = json.loads(response.choices[0].message.content)
+        action = data.get("action", "")
+        if action in ACTIONS:
+            return action
+    except Exception as e:
+        logger.warning(f"Agent {role} failed to parse or reach LLM. Error: {e}")
+        
+    return fallback_action
 
-# ==========================================
-# BINDING FUNCTIONS
-# ==========================================
+# Step 4: Agents taking state -> one action
+async def profit_agent(state: Dict[str, Any]) -> str:
+    m = state.get("metrics", {})
+    fallback = "increase_production" if m.get("expected_profit", 0) < 0.8 else "launch_fast"
+    return await call_llm_agent("Profit Agent (Maximize revenue/expected_profit, risk-tolerant)", state, fallback)
 
-async def profit_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    return await run_agent_workflow(PROFIT_PROMPT, state)
+async def pr_agent(state: Dict[str, Any]) -> str:
+    m = state.get("metrics", {})
+    fallback = "delay_launch" if m.get("public_sentiment", 0) < 0.6 else "invest_in_safety"
+    return await call_llm_agent("PR Agent (Maximize public_sentiment, avoid bad press)", state, fallback)
 
-async def pr_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    return await run_agent_workflow(PR_PROMPT, state)
+async def ethics_agent(state: Dict[str, Any]) -> str:
+    m = state.get("metrics", {})
+    fallback = "invest_in_safety" if m.get("env_impact", 0) > 0.4 else "reduce_cost"
+    return await call_llm_agent("Ethics Agent (Minimize env_impact and seek fairness)", state, fallback)
 
-async def ethics_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    return await run_agent_workflow(ETHICS_PROMPT, state)
+async def legal_agent(state: Dict[str, Any]) -> str:
+    m = state.get("metrics", {})
+    fallback = "invest_in_safety" if m.get("legal_risk", 0) > 0.3 else "reduce_cost"
+    return await call_llm_agent("Legal Agent (Minimize legal_risk securely)", state, fallback)
 
-async def final_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    return await run_agent_workflow(FINAL_PROMPT, state, is_final=True)
+async def risk_agent(state: Dict[str, Any]) -> str:
+    m = state.get("metrics", {})
+    if m.get("legal_risk", 0) > 0.6 or m.get("env_impact", 0) > 0.6:
+        fallback = "delay_launch"
+    elif m.get("cost", 0) > 0.7:
+        fallback = "reduce_cost"
+    else:
+        fallback = "invest_in_safety"
+    return await call_llm_agent("Risk Agent (Balance all downsides globally)", state, fallback)
 
-# ==========================================
-# PARALLEL EXECUTION PIPELINE
-# ==========================================
+# Step 5: Aggregation combining via voting
+def aggregate_actions(actions: List[str]) -> str:
+    """Combine agent actions using voting. Returns ONE final action."""
+    counts = {}
+    for a in actions:
+        counts[a] = counts.get(a, 0) + 1
+        
+    # Sort by frequency descending. Break ties deterministically via alphabetical sorting
+    best_action = sorted(counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+    return best_action
 
-async def orchestrate_decision(state: Dict[str, Any]):
-    print("🚀 Triggering biased sub-agents in parallel...")
-    
-    # 🌟 Asyncio trick: We command all three separate agents to hit the LLM API 
-    # simultaneously instead of waiting on each one in a row!
+async def get_multi_agent_action(state: Dict[str, Any]) -> str:
+    # Triggering the 5 agents simultaneously
     results = await asyncio.gather(
         profit_agent(state),
         pr_agent(state),
-        ethics_agent(state)
+        ethics_agent(state),
+        legal_agent(state),
+        risk_agent(state)
     )
-    print("✅ Sub-agents complete. Responses collected.\n")
-    
-    # Pack their responses into history so the final agent can read them
-    final_state = state.copy()
-    final_state["history"] = results
-    
-    print("⚖️ Initiating Final Decision Engine Analysis...")
-    final_result = await final_agent(final_state)
-    
-    print("\n[🎯 FINAL DECISION RECORD]")
-    print(json.dumps(final_result, indent=2))
-    return final_result
-
-
-# ==========================================
-# EXECUTION SCRIPT
-# ==========================================
-if __name__ == "__main__":
-    dummy_state = {
-        "scenario": "Launch a social media timeline that prioritizes enragement to boost engagement 45%, but carries unresolved European GDPR risks.",
-        "metrics": {
-            "cost": 50000,
-            "expected_profit": 1500000,
-            "legal_risk": 0.85,
-            "env_impact": 0.05,
-            "public_sentiment": -0.6
-        },
-        "uncertainty": {
-            "legal_conf": 0.5,
-            "env_conf": 0.95
-        },
-        "history": []
-    }
-    
-    # Warning if testing without key attached
-    if not os.getenv("OPENAI_API_KEY"):
-        print("\n\n⚠️ WARNING: You must set your OPENAI_API_KEY environment variable to test this successfully! ⚠️\n")
-        
-    asyncio.run(orchestrate_decision(dummy_state))
+    final_action = aggregate_actions(list(results))
+    return final_action

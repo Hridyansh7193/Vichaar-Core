@@ -19,5 +19,7 @@ ENV OPENAI_API_KEY=""
 ENV OPENAI_API_BASE="https://api.openai.com/v1"
 ENV MODEL_NAME="gpt-4o-mini"
 
-# Main entrypoint runs the full inference suite
-CMD ["python", "inference.py"]
+EXPOSE 8000
+
+# Main entrypoint runs the app
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,54 +1,60 @@
 import asyncio
-import json
 from env import Env
+from multi_agent import get_multi_agent_action
 
-async def run_task(task_id: str):
-    """Executes a full episode in the environment for a specific task."""
-    print(f"\n--- Running Task: {task_id.upper()} ---")
-    
+# Step 12: Limit Steps (3-5)
+MAX_STEPS = 3 
+
+async def run_episode(task_id: str) -> float:
+    """Executes a full episode simulation looping through agent steps."""
     env = Env()
+    
+    # Reset Environment
     observation = env.reset(task_id)
+    print(f"\n--- Running Task: {task_id.upper()} ---")
+    print(f"Scenario: {observation['scenario']}")
     
-    print(f"Scenario: {observation.scenario[:80]}...")
-    
-    done = False
     total_reward = 0.0
     
-    # Step 1 & 2: Run deliberation Rounds
-    for round_idx in range(2):
-        response = await env.step({"action_type": "step"})
-        total_reward += response.reward
-        print(f"Step {round_idx+1} [Reward: {response.reward:.2f}]: {response.info['status']}")
+    # Loop max steps
+    for step_num in range(MAX_STEPS):
+        # 1. State goes to Multi-Agent cluster, combines votes, returns Action
+        action = await get_multi_agent_action(env.state())
         
-    # Step 3: Run Final Decision Agent
-    response = await env.step({"action_type": "finalize"})
-    total_reward += response.reward
-    
-    print(f"Decision: {response.info['final_decision']['final_decision'].upper()}")
-    print(f"Final Reward: {response.reward:.2f} | Cumulative: {total_reward:.2f}")
-    
-    return float(total_reward)
+        # 2. Step Environment
+        next_state, reward, done, info = env.step(action)
+        print(f"  Step {step_num+1}: Chosen [{action}] -> Step Reward: {reward:.4f}")
+        
+        # Track Rewards structurally
+        total_reward += reward
+        
+        if done:
+            break
+            
+    # Compute Final Average over iterations
+    return total_reward / MAX_STEPS
 
 async def main():
+    print("Testing Simulation Pipeline...")
     tasks = ["easy", "medium", "hard"]
     results = {}
     
-    # Running all tasks in sequence to avoid hitting AI rate limits too hard
-    # while still enabling deterministic evaluation across the suite
+    # Inference loop all tasks
     for task_id in tasks:
-        try:
-            score = await run_task(task_id)
-            results[task_id] = score
-        except Exception as e:
-            print(f"Error executing task {task_id}: {e}")
-            results[task_id] = 0.0
-            
-    print("\n" + "="*30)
-    print("FINAL EVALUATION SCORES")
-    print("="*30)
-    for task_id, score in results.items():
-        print(f"{task_id.ljust(10)}: {score:.4f}")
-    print("="*30)
+        score = await run_episode(task_id)
+        results[task_id] = score
+        
+    # Step 10 target format output
+    print("\n" + "="*20)
+    print("RESULT SCORES")
+    print("="*20)
+    
+    for idx, (t_id, score) in enumerate(results.items(), 1):
+        print(f"Task {idx}: {score:.2f}")
+    
+    final_avg = sum(results.values()) / len(results) if results else 0.0
+    print(f"Final Avg: {final_avg:.2f}")
+    print("="*20)
 
 if __name__ == "__main__":
     asyncio.run(main())

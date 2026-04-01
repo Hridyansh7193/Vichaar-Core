@@ -1,101 +1,121 @@
-import asyncio
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
 from tasks import TASKS
-from multi_agent import profit_agent, pr_agent, ethics_agent, final_agent
-from grader import compute_reward, get_intermediate_reward
-from openenv.models import Observation, EnvAction, RewardResponse
-import config
+from grader import compute_reward
 
 class Env:
     def __init__(self):
-        self._state: Dict[str, Any] = {}
-        self._task_id: str = ""
-        self._round_num: int = 0
-        self._max_rounds: int = 2
-        self._done: bool = False
-
-    def reset(self, task_id: str = "easy") -> Observation:
-        """Resets the environment with a specific task_id."""
-        task = TASKS.get(task_id, TASKS["easy"])
-        self._task_id = task_id
-        self._state = {
-            "id": task["id"],
-            "description": task["description"],
-            "scenario": task["scenario"],
-            "metrics": task["metrics"].copy(),
-            "uncertainty": task["uncertainty"].copy(),
-            "history": [] 
+        # STRICT DEBUG: Use ONLY self._state, ensure it always contains default values.
+        self._state: Dict[str, Any] = {
+            "scenario": "Uninitialized",
+            "metrics": {
+                "expected_profit": 0.5,
+                "legal_risk": 0.0,
+                "env_impact": 0.0,
+                "public_sentiment": 0.5,
+                "cost": 0.0
+            },
+            "history": [],
+            "step_count": 0
         }
-        self._round_num = 0
-        self._done = False
-        return self._get_observation()
-
-    async def _run_agents(self) -> float:
-        """Run a full round of DELIBERATION sub-agents (Profit, PR, Ethics)."""
-        agents = [profit_agent, pr_agent, ethics_agent]
-        round_actions = []
-        
-        # Sequentially collect opinions
-        for agent_fn in agents:
-            action_output = await agent_fn(self._state)
-            round_actions.append(action_output)
-            
-        # Append to state history and limit size
-        self._state["history"].extend(round_actions)
-        if len(self._state["history"]) > 10:
-             self._state["history"] = self._state["history"][-10:]
-             
-        self._round_num += 1
-        
-        # Calculate intermediate reward for this round
-        return get_intermediate_reward(self._state, self._round_num)
-
-    async def step(self, action: Dict[str, Any]) -> RewardResponse:
-        """
-        Executes one step in the OpenEnv flow.
-        action = {"action_type": "step" | "finalize"}
-        """
-        if self._done:
-             return RewardResponse(reward=0.0, done=True, info={"error": "Episode finished."})
-
-        # Validate action
-        env_action = EnvAction(**action)
-        action_type = env_action.action_type
-        
-        reward = 0.0
-        info = {}
-
-        if action_type == "step":
-            if self._round_num < self._max_rounds:
-                reward = await self._run_agents()
-                info = {"status": f"Round {self._round_num} complete."}
-            else:
-                action_type = "finalize"
-
-        if action_type == "finalize":
-            final_decision_output = await final_agent(self._state)
-            self._done = True
-            reward = compute_reward(self._state, final_decision_output, self._task_id)
-            info = {"status": "Decision finalized.", "final_decision": final_decision_output}
-
-        return RewardResponse(reward=float(reward), done=self._done, info=info)
+        self.task_id: str = "medium"
 
     def state(self) -> Dict[str, Any]:
-        """Returns the raw environment state."""
-        return self._state.copy()
+        return self._state
 
-    def _get_observation(self) -> Observation:
-        """Returns the public observation (scenario, metrics, history)."""
-        return Observation(
-            scenario=self._state.get("scenario", ""),
-            metrics=self._state.get("metrics", {}),
-            history=self._state.get("history", [])
-        )
+    def reset(self, task_id: str = "medium") -> Dict[str, Any]:
+        """
+        Loads scenario, metrics, initializes history/count into self.state.
+        """
+        if task_id not in TASKS:
+             task_id = "medium"
+        
+        self.task_id = task_id
+        task = TASKS[task_id]
+        
+        self._state = {
+            "scenario": task.get("scenario", "Default scenario"),
+            "metrics": task.get("metrics", {}).copy(),
+            "history": [],
+            "step_count": 0
+        }
+        # Ensure base metrics exist after reset to prevent KeyError
+        metrics = self._state["metrics"]
+        for key in ["expected_profit", "legal_risk", "env_impact", "public_sentiment", "cost"]:
+            if key not in metrics:
+                metrics[key] = 0.5 if key in ["expected_profit", "public_sentiment"] else 0.0
+                
+        return self._state
 
-    @property
-    def round_num(self):
-        return self._round_num
+    def _clamp(self, val: float) -> float:
+        """Clamp all values between 0 and 1 and round to 2 decimals."""
+        return round(max(0.0, min(1.0, float(val))), 2)
 
-    @property
-    def done(self):
-        return self._done
+    def step(self, action: str) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
+        """
+        Applies action deterministic effects on metrics. Updates history.
+        """
+        metrics = self._state.get("metrics", {})
+        
+        # Safe access to avoid KeyErrors
+        profit = metrics.get("expected_profit", 0.0)
+        legal = metrics.get("legal_risk", 0.0)
+        env_imp = metrics.get("env_impact", 0.0)
+        sentiment = metrics.get("public_sentiment", 0.0)
+        cost = metrics.get("cost", 0.0)
+        
+        if action == "increase_production":
+            profit += 0.2
+            legal += 0.2
+            env_imp += 0.1
+            sentiment -= 0.1
+            cost += 0.1
+        elif action == "delay_launch":
+            sentiment += 0.2
+            profit -= 0.1
+            legal -= 0.1
+            env_imp -= 0.05
+            cost += 0.1
+        elif action == "invest_in_safety":
+            profit -= 0.1
+            legal -= 0.3
+            env_imp -= 0.2
+            sentiment += 0.1
+            cost += 0.2
+        elif action == "launch_fast":
+            profit += 0.3
+            legal += 0.3
+            sentiment -= 0.2
+            env_imp += 0.1
+            cost -= 0.1
+        elif action == "reduce_cost":
+            cost -= 0.2
+            profit += 0.1
+            env_imp += 0.2
+            legal += 0.1
+            sentiment -= 0.1
+            
+        # Reassign and Clamp
+        metrics["expected_profit"] = self._clamp(profit)
+        metrics["legal_risk"] = self._clamp(legal)
+        metrics["env_impact"] = self._clamp(env_imp)
+        metrics["public_sentiment"] = self._clamp(sentiment)
+        metrics["cost"] = self._clamp(cost)
+            
+        self._state["metrics"] = metrics
+        
+        # Update history safely
+        history = self._state.get("history", [])
+        history.append(action)
+        self._state["history"] = history[-10:]
+        
+        self._state["step_count"] = self._state.get("step_count", 0) + 1
+            
+        # Calculate Reward based on immediate state
+        current_reward = compute_reward(self._state, self.task_id)
+        
+        # Determine simulation end status
+        done = self._state["step_count"] >= 3  
+        
+        info = {}
+        
+        return self._state, current_reward, done, info
