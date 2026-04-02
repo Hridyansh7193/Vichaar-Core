@@ -1,6 +1,7 @@
 import asyncio
 from env import Env
 from multi_agent import get_multi_agent_action
+from grader import grade_episode
 
 # Step 12: Limit Steps (3-5)
 MAX_STEPS = 3 
@@ -14,7 +15,7 @@ async def run_episode(task_id: str) -> float:
     print(f"\n--- Running Task: {task_id.upper()} ---")
     print(f"Scenario: {observation['scenario']}")
     
-    total_reward = 0.0
+    total_step_reward = 0.0
     
     # Loop max steps
     for step_num in range(MAX_STEPS):
@@ -26,13 +27,17 @@ async def run_episode(task_id: str) -> float:
         print(f"  Step {step_num+1}: Chosen [{action}] -> Step Reward: {reward:.4f}")
         
         # Track Rewards structurally
-        total_reward += reward
+        total_step_reward += reward
         
         if done:
             break
             
+    final_score = grade_episode(env.state(), task_id)
+    print(f"  Total Step Reward: {total_step_reward:.2f}")
+    print(f"  Final Score: {final_score:.2f}")
+
     # Compute Final Average over iterations
-    return total_reward / MAX_STEPS
+    return final_score
 
 async def main():
     print("Testing Simulation Pipeline...")
@@ -46,7 +51,7 @@ async def main():
         
     # Step 10 target format output
     print("\n" + "="*20)
-    print("RESULT SCORES")
+    print("RESULT SCORES (Final Grades)")
     print("="*20)
     
     for idx, (t_id, score) in enumerate(results.items(), 1):

@@ -20,12 +20,14 @@ The observation returned by the environment is a strictly typed JSON object cont
 - `history` (list): The list of past selected actions.
 - `step_count` (int): The current integer step.
 
-## Reward Logic
-After every step, a numeric reward between `0.0` and `1.0` is computed based on the formula:
-`reward = 0.4 * expected_profit - 0.3 * legal_risk - 0.2 * env_impact + 0.1 * public_sentiment`
+## Reward and Grading Logic
+**Step Reward**: At every step, an incremental reward between `-1.0` and `1.0` is computed based on the *change* (delta) in metrics:
+`reward = 0.2*Δprofit - 0.2*Δlegal_risk - 0.2*Δenv_impact + 0.1*Δpublic_sentiment`
 
-The reward is dynamically adjusted based on task constraints. For example, in hard tasks, high legal risk strongly penalizes the score.
+**Final Grade**: At the end of the simulation, a final episode score between `0.0` and `1.0` is evaluated purely on final absolute state:
+`score = 0.4*profit - 0.3*legal_risk - 0.2*env_impact + 0.1*public_sentiment`
 
+The final score is dynamically adjusted based on task constraints. For example, in hard tasks, high environmental impact strongly penalizes the score.
 ## Setup Instructions
 
 ### Local Environment

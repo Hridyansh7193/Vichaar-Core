@@ -55,6 +55,7 @@ class RunResponse(BaseModel):
     history: List[Dict[str, Any]]
     final_state: Observation
     final_reward: float
+    total_step_reward: float
     summary: RunSummary
 
 @app.get("/")
@@ -97,7 +98,9 @@ async def run_episode(req: RunRequest):
     state = global_env.reset(req.task_id)
     
     history_log = []
-    total_reward = 0.0
+    total_step_reward = 0.0
+    
+    from grader import grade_episode
     
     for step_num in range(req.max_steps):
         action = await get_multi_agent_action(state)
@@ -117,24 +120,24 @@ async def run_episode(req: RunRequest):
         
         logger.info(f"Step {step_num + 1}: Action [{action}] -> Step Reward: {reward:.2f}")
         
-        total_reward += reward
+        total_step_reward += reward
         state = obs
         
         if done:
             break
             
-    final_avg = round(total_reward / len(history_log) if history_log else 0.0, 2)
+    final_score = grade_episode(state, req.task_id)
     
-    if final_avg >= 0.7:
+    if final_score >= 0.7:
         perf = "good"
-    elif final_avg >= 0.4:
+    elif final_score >= 0.4:
         perf = "average"
     else:
         perf = "poor"
 
     summary = {
         "total_steps": len(history_log),
-        "final_reward": final_avg,
+        "final_reward": final_score,
         "performance": perf
     }
     
@@ -144,6 +147,7 @@ async def run_episode(req: RunRequest):
     return {
         "history": history_log,
         "final_state": safe_state,
-        "final_reward": final_avg,
+        "final_reward": final_score,
+        "total_step_reward": round(total_step_reward, 2),
         "summary": summary
     }

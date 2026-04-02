@@ -1,7 +1,6 @@
 from typing import Dict, Any, Tuple
 from tasks import TASKS
-from grader import compute_reward
-
+import copy
 class Env:
     def __init__(self):
         # STRICT DEBUG: Use ONLY self._state, ensure it always contains default values.
@@ -54,6 +53,11 @@ class Env:
         """
         Applies action deterministic effects on metrics. Updates history.
         """
+        import copy
+        
+        # Save previous metrics
+        prev_metrics = copy.deepcopy(self._state.get("metrics", {}))
+        
         metrics = self._state.get("metrics", {})
         
         # Safe access to avoid KeyErrors
@@ -110,8 +114,8 @@ class Env:
         
         self._state["step_count"] = self._state.get("step_count", 0) + 1
             
-        # Calculate Reward based on immediate state
-        current_reward = compute_reward(self._state, self.task_id)
+        # Calculate Reward based on metric change
+        current_reward = self.compute_step_reward(prev_metrics, metrics)
         
         # Determine simulation end status
         done = self._state["step_count"] >= 3  
@@ -119,3 +123,18 @@ class Env:
         info = {}
         
         return self._state, current_reward, done, info
+        
+    def compute_step_reward(self, prev_metrics: Dict[str, Any], current_metrics: Dict[str, Any]) -> float:
+        reward = 0.0
+
+        # reward improvement
+        reward += 0.2 * (float(current_metrics.get("expected_profit", 0.0)) - float(prev_metrics.get("expected_profit", 0.0)))
+
+        # penalize increase in risk
+        reward -= 0.2 * (float(current_metrics.get("legal_risk", 0.0)) - float(prev_metrics.get("legal_risk", 0.0)))
+        reward -= 0.2 * (float(current_metrics.get("env_impact", 0.0)) - float(prev_metrics.get("env_impact", 0.0)))
+
+        # reward sentiment improvement
+        reward += 0.1 * (float(current_metrics.get("public_sentiment", 0.0)) - float(prev_metrics.get("public_sentiment", 0.0)))
+
+        return round(max(-1.0, min(1.0, float(reward))), 2)
