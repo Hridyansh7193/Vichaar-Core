@@ -1,22 +1,48 @@
+"""
+FastAPI Application — Research-Grade Multi-Agent RL Simulation API
+
+Endpoints:
+  GET  /          → health check
+  POST /reset     → reset environment to a task
+  POST /step      → one coordinated multi-agent step
+  POST /run       → full episode with trajectory logging
+  GET  /state     → current environment state
+  GET  /config    → current env_config values
+"""
+
 import logging
 import copy
-from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from env import Env
-from multi_agent import get_multi_agent_action
+import uuid
+import asyncio
+from typing import Dict, Any, List, Optional
 
-# Initialize logging
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+from env import Env
+from multi_agent import make_agents, Policy
+from trajectory import TrajectoryCollector
+from grader import compute_final_grade
+from env_config import ACTIONS, AGENT_DEFS
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
-app = FastAPI(title="Multi-Agent RL Simulation API")
+app = FastAPI(
+    title="Vichaar-Core — Research-Grade Multi-Agent RL API",
+    version="2.0.0",
+)
 
-# Global environment instance
-global_env = Env()
+# ── global instances ──────────────────────────────────────────────────
+env = Env()
+agents = make_agents()
+policy = Policy(agents)
+collector = TrajectoryCollector()
 
-# Models
+
+# ══════════════════════════════════════════════════════════════════════
+#  Pydantic Models
+# ══════════════════════════════════════════════════════════════════════
 class Metrics(BaseModel):
     expected_profit: float
     legal_risk: float
@@ -26,128 +52,162 @@ class Metrics(BaseModel):
 
 class Observation(BaseModel):
     scenario: str
+    phase: str
     metrics: Metrics
+    entities: Dict[str, Any]
+    events: List[str]
     history: List[str]
     step_count: int
-
-class Action(BaseModel):
-    action: str
+    agent_messages: List[str]
+    metrics_trend: List[Dict[str, float]]
 
 class ResetRequest(BaseModel):
-    task_id: str = "easy"
+    task_id: str = "medium"
 
-class RewardResponse(BaseModel):
+class StepResponse(BaseModel):
     observation: Observation
-    reward: float
+    action: str
+    agent_votes: Dict[str, str]
+    rewards: Dict[str, float]
     done: bool
     info: Dict[str, Any]
 
 class RunRequest(BaseModel):
-    task_id: str = "easy"
-    max_steps: int = 3
+    task_id: str = "medium"
+    max_steps: Optional[int] = None
 
 class RunSummary(BaseModel):
     total_steps: int
-    final_reward: float
+    final_grade: float
+    total_agent_rewards: Dict[str, float]
     performance: str
+    collaborated_steps: int
 
 class RunResponse(BaseModel):
     history: List[Dict[str, Any]]
     final_state: Observation
-    final_reward: float
-    total_step_reward: float
     summary: RunSummary
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  Endpoints
+# ══════════════════════════════════════════════════════════════════════
 @app.get("/")
 async def root():
-    return {"message": "API working"}
+    return {"status": "active", "version": "2.0.0", "agents": list(AGENT_DEFS.keys())}
+
+@app.get("/config")
+async def get_config():
+    return {
+        "actions": ACTIONS,
+        "agents": {k: v["desc"] for k, v in AGENT_DEFS.items()},
+    }
+
+@app.get("/state", response_model=Observation)
+async def get_state():
+    return env.state()
 
 @app.post("/reset", response_model=Observation)
 async def reset_env(req: ResetRequest):
-    logger.info(f"Resetting environment with task_id: {req.task_id}")
-    obs = global_env.reset(req.task_id)
-    return copy.deepcopy(obs)
+    logger.info(f"Reset → {req.task_id}")
+    obs = env.reset(req.task_id)
+    for a in agents.values():
+        a.memory.clear()
+    collector.reset()
+    return obs
 
-@app.post("/step", response_model=RewardResponse)
+@app.post("/step", response_model=StepResponse)
 async def step_env():
-    # Get Action from Agents Based on Current State
-    current_state = global_env.state()
-    if not current_state.get("scenario") or current_state.get("scenario") == "Uninitialized":
-        # Auto-reset if not initialized
-        current_state = global_env.reset("easy")
-        logger.info("Environment auto-reset to 'easy' since it wasn't initialized.")
-    
-    action = await get_multi_agent_action(current_state)
-    logger.info(f"Agents selected action: {action}")
-    
-    # Step environment
-    obs, reward, done, info = global_env.step(action)
-    logger.info(f"Reward updated: {reward:.2f}")
-    
-    safe_obs = copy.deepcopy(obs)
-    return RewardResponse(
-        observation=safe_obs,
-        reward=reward,
+    state = env.state()
+    if state["scenario"] == "Uninitialized":
+        state = env.reset("medium")
+
+    action, board, votes = await policy.run_step(state)
+    next_obs, rewards, done, info = env.step(action, messages=board, agent_votes=votes)
+
+    # memory + learning
+    for role, agent in agents.items():
+        r = rewards.get(role, 0.0)
+        agent.memory.add(state["metrics"], action, r, state["step_count"])
+        agent.update_values(action, r)
+
+    collector.log_step(state["step_count"], state, action, votes, rewards, next_obs, info)
+
+    return StepResponse(
+        observation=next_obs,
+        action=action,
+        agent_votes=votes,
+        rewards=rewards,
         done=done,
-        info=info
+        info=info,
     )
 
 @app.post("/run", response_model=RunResponse)
 async def run_episode(req: RunRequest):
-    logger.info(f"Running full episode for task_id: {req.task_id} with max_steps: {req.max_steps}")
-    state = global_env.reset(req.task_id)
-    
-    history_log = []
-    total_step_reward = 0.0
-    
-    from grader import grade_episode
-    
-    for step_num in range(req.max_steps):
-        action = await get_multi_agent_action(state)
-        # Avoid crashes safely
-        obs, reward, done, info = global_env.step(action)
-        
-        # Safe dict access to metrics and history tracking
-        metrics = obs.get("metrics", {})
-        
-        step_result = {
-            "step": step_num + 1,
+    logger.info(f"Run episode → {req.task_id}")
+    state = env.reset(req.task_id)
+    for a in agents.values():
+        a.memory.clear()
+    collector.reset()
+
+    episode_id = uuid.uuid4().hex[:8]
+    max_steps = req.max_steps or env.max_steps
+
+    history_log: List[Dict[str, Any]] = []
+    totals = {r: 0.0 for r in agents}
+    collab_count = 0
+
+    for step in range(max_steps):
+        action, board, votes = await policy.run_step(state)
+        next_obs, rewards, done, info = env.step(action, messages=board, agent_votes=votes)
+
+        for role, agent in agents.items():
+            r = rewards.get(role, 0.0)
+            agent.memory.add(state["metrics"], action, r, step)
+            agent.update_values(action, r)
+            totals[role] += r
+
+        if info.get("collaborated"):
+            collab_count += 1
+
+        # periodic reflection
+        if (step + 1) % 5 == 0:
+            await asyncio.gather(*[a.reflect(state) for a in agents.values()])
+
+        history_log.append({
+            "step": step + 1,
+            "phase": state.get("phase", ""),
             "action": action,
-            "reward": reward,
-            "metrics": metrics.copy() if metrics else {}
-        }
-        history_log.append(step_result)
-        
-        logger.info(f"Step {step_num + 1}: Action [{action}] -> Step Reward: {reward:.2f}")
-        
-        total_step_reward += reward
-        state = obs
-        
+            "agent_votes": votes,
+            "rewards": rewards,
+            "metrics": copy.deepcopy(next_obs["metrics"]),
+            "events": info.get("events", []),
+            "collaborated": info.get("collaborated", False),
+        })
+        collector.log_step(step, state, action, votes, rewards, next_obs, info)
+
+        state = next_obs
         if done:
             break
-            
-    final_score = grade_episode(state, req.task_id)
-    
-    if final_score >= 0.7:
-        perf = "good"
-    elif final_score >= 0.4:
-        perf = "average"
-    else:
-        perf = "poor"
 
-    summary = {
-        "total_steps": len(history_log),
-        "final_reward": final_score,
-        "performance": perf
-    }
-    
-    # Ensure fully independent copy for the response
-    safe_state = copy.deepcopy(global_env.state())
-    
-    return {
-        "history": history_log,
-        "final_state": safe_state,
-        "final_reward": final_score,
-        "total_step_reward": round(total_step_reward, 2),
-        "summary": summary
-    }
+    collector.save_episode(episode_id)
+    grade = compute_final_grade(state, req.task_id)
+
+    if grade >= 0.70:
+        perf = "Excellent"
+    elif grade >= 0.40:
+        perf = "Average"
+    else:
+        perf = "Critical"
+
+    return RunResponse(
+        history=history_log,
+        final_state=state,
+        summary=RunSummary(
+            total_steps=len(history_log),
+            final_grade=grade,
+            total_agent_rewards={k: round(v, 3) for k, v in totals.items()},
+            performance=perf,
+            collaborated_steps=collab_count,
+        ),
+    )

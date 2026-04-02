@@ -1,12 +1,12 @@
-name: "vichaar-agentic-eval"
-description: "A multi-agent decision evaluation environment for ethics, profitability, and public relations trade-offs."
-version: 1.0.0
+name: "vichaar-research-eval"
+description: "A research-grade multi-agent RL environment with hierarchical memory, coordinated discussion, and research-level trajectory collection."
+version: 2.0.0
 entry_point: "env:Env"
 
 tasks:
   - id: "easy"
-    name: "Software Update"
-    description: "Low-risk optimization with clear benefits."
+    name: "Software Update Rollout"
+    description: "Low conflict: Simple software update to improve efficiency."
     difficulty: 1
     
   - id: "medium"
@@ -15,10 +15,20 @@ tasks:
     difficulty: 3
     
   - id: "hard"
-    name: "Resource Extraction"
+    name: "Arctic Deep Mining"
     description: "Extreme risk and high-return litigation/extraction conflict."
     difficulty: 5
 
+  - id: "adversarial"
+    name: "Corporate Hostile Takeover"
+    description: "Multi-party shareholder and worker stakeholder conflict."
+    difficulty: 7
+
+  - id: "chaotic"
+    name: "Global Supply Chain Collapse"
+    description: "High-uncertainty overlapping world crises."
+    difficulty: 10
+
 meta:
-  tags: ["agentic", "multi-agent", "ethics", "business"]
+  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory"]
   author: "Hridyansh"
