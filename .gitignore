@@ -1,4 +1,4 @@
-# Environments
+# Environments & secrets
 .env
 .venv/
 venv/
@@ -15,5 +15,8 @@ __pycache__/
 .idea/
 .DS_Store
 
-# Logs
+# Logs & artifacts
 *.log
+trajectories/
+training_trajectories/
+*.jsonl

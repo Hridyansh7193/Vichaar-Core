@@ -1,34 +1,99 @@
-name: "vichaar-research-eval"
-description: "A research-grade multi-agent RL environment with hierarchical memory, coordinated discussion, and research-level trajectory collection."
-version: 2.0.0
+name: "vichaar-core"
+description: >
+  A research-grade multi-agent reinforcement learning environment where five
+  specialized AI agents (Profit, Ethics, PR, Legal, Risk) coordinate through
+  discussion, voting, and adaptive learning to navigate complex business
+  scenarios with conflicting stakeholder objectives.
+version: "2.0.0"
 entry_point: "env:Env"
 
+# OpenEnv API methods
+api:
+  reset: "reset"
+  step: "step"
+  state: "state"
+
+# Inference script
+inference: "inference.py"
+
+# Grader
+grader: "grader:compute_final_grade"
+
+# Action space — 12 discrete business actions
+action_space:
+  type: "discrete"
+  size: 12
+  actions:
+    - increase_production
+    - delay_launch
+    - invest_in_safety
+    - launch_fast
+    - reduce_cost
+    - lobby_regulators
+    - pr_campaign
+    - green_innovation
+    - outsource_tasks
+    - employee_training
+    - market_research
+    - vulnerability_audit
+
+# Observation space
+observation_space:
+  type: "dict"
+  keys:
+    - scenario
+    - phase
+    - metrics
+    - entities
+    - events
+    - history
+    - step_count
+    - agent_messages
+    - metrics_trend
+
+# Tasks (easy → chaotic)
 tasks:
   - id: "easy"
     name: "Software Update Rollout"
     description: "Low conflict: Simple software update to improve efficiency."
     difficulty: 1
-    
+    max_steps: 10
+
   - id: "medium"
     name: "Personalized Targeting"
     description: "Privacy vs Profit conflict requiring balanced deliberation."
     difficulty: 3
-    
+    max_steps: 15
+
   - id: "hard"
     name: "Arctic Deep Mining"
     description: "Extreme risk and high-return litigation/extraction conflict."
     difficulty: 5
+    max_steps: 20
 
   - id: "adversarial"
     name: "Corporate Hostile Takeover"
     description: "Multi-party shareholder and worker stakeholder conflict."
     difficulty: 7
+    max_steps: 20
 
   - id: "chaotic"
     name: "Global Supply Chain Collapse"
     description: "High-uncertainty overlapping world crises."
     difficulty: 10
+    max_steps: 25
+
+# Baseline scores (heuristic agent, no LLM)
+baselines:
+  heuristic:
+    easy: 0.461
+    medium: 0.262
+    hard: 0.078
+    adversarial: 0.086
+    chaotic: 0.000
+    mean: 0.177
 
 meta:
-  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory"]
+  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory", "explainable"]
   author: "Hridyansh"
+  license: "MIT"

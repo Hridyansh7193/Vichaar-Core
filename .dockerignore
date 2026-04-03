@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.example
+__pycache__
+*.pyc
+*.pyo
+trajectories/
+training_trajectories/
+*.jsonl
+*.log
+.vscode/
+.idea/
+vichaar_core_guide.md
