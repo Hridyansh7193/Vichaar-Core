@@ -1,3 +1,11 @@
+---
+title: Vichaar Core
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
 # Vichaar-Core
 
 **Strategic Multi-Agent Reinforcement Learning Environment for Complex Decision-Making**

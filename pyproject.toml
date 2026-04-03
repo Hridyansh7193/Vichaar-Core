@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vichaar-core"
+version = "2.0.0"
+description = "Vichaar-Core OpenEnv Environment"
+authors = [{name = "Hridyansh"}]
+dependencies = [
+    "python-dotenv>=1.0.0"
+]
