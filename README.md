@@ -110,14 +110,14 @@ python inference.py
 ### 4. Start API Server
 
 ```bash
-uvicorn api.server:app --host 0.0.0.0 --port 7860
+uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
 
 ### 5. Docker
 
 ```bash
 docker build -t vichaar-core .
-docker run -p 7860:7860 vichaar-core
+docker run -p 8000:8000 vichaar-core
 ```
 
 ---

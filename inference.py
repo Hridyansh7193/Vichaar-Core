@@ -132,6 +132,14 @@ async def main():
     print("  Vichaar-Core -- Strategic Multi-Agent RL (Coordinator + CEO + Safe Mode)")
     print("="*90)
 
+    from configs.api_config import OPENAI_API_BASE, MODEL_NAME, OPENAI_API_KEY
+    import os
+    print(f"  Configuration Loaded:")
+    print(f"  - API_BASE_URL (or OPENAI_API_BASE): {OPENAI_API_BASE}")
+    print(f"  - MODEL_NAME: {MODEL_NAME}")
+    print(f"  - HF_TOKEN / OPENAI_API_KEY found: {'Yes' if OPENAI_API_KEY else 'No'}")
+    print("="*90)
+
     env = Env()
     agents = make_agents()
     policy = Policy(agents)

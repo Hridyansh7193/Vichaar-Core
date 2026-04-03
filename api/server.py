@@ -2,7 +2,7 @@
 Vichaar-Core API Server
 
 Research-Grade Multi-Agent RL Simulation.
-Start: uvicorn api.server:app --host 0.0.0.0 --port 7860
+Start: uvicorn api.server:app --host 0.0.0.0 --port 8000
 """
 import logging
 from fastapi import FastAPI
