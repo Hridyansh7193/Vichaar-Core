@@ -5,7 +5,7 @@ description: >
   discussion, voting, and adaptive learning to navigate complex business
   scenarios with conflicting stakeholder objectives.
 version: "2.0.0"
-entry_point: "env:Env"
+entry_point: "core.env:Env"
 
 # OpenEnv API methods
 api:
@@ -17,7 +17,7 @@ api:
 inference: "inference.py"
 
 # Grader
-grader: "grader:compute_final_grade"
+grader: "evaluation.grader:compute_final_grade"
 
 # Action space — 12 discrete business actions
 action_space:
@@ -83,15 +83,15 @@ tasks:
     difficulty: 10
     max_steps: 25
 
-# Baseline scores (heuristic agent, no LLM)
+# Baseline scores (strategic system: CEO + Coordinator + SafeMode)
 baselines:
-  heuristic:
-    easy: 0.461
-    medium: 0.262
-    hard: 0.078
-    adversarial: 0.086
+  strategic:
+    easy: 0.430
+    medium: 0.324
+    hard: 0.351
+    adversarial: 0.175
     chaotic: 0.000
-    mean: 0.177
+    mean: 0.256
 
 meta:
   tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory", "explainable"]

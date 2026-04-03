@@ -1,5 +1,5 @@
 """
-Trajectory Collector — research-grade JSONL logging.
+Trajectory Collector -- research-grade JSONL logging.
 
 Stores per-step transitions with full provenance:
   state, action, agent_votes, rewards, next_state, events, step, timestamp

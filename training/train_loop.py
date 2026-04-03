@@ -1,21 +1,15 @@
-"""
-Training Loop — run episodes, collect trajectories, update agent memory.
-
-Demonstrates long-term learning through memory accumulation and periodic
-reflection.  When an LLM is available, reflections become genuine strategy
-updates; without one, heuristic reflections still adapt behavior.
-"""
-
+"""Training Loop -- run episodes, collect trajectories, update agent memory."""
 import asyncio
 import logging
 from typing import List
 
-from env import Env
-from multi_agent import make_agents, Policy
-from grader import compute_final_grade
-from trajectory import TrajectoryCollector
+from core.env import Env
+from agents import make_agents
+from decision.policy import Policy
+from evaluation.grader import compute_final_grade
+from training.trajectory import TrajectoryCollector
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s │ %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
 logger = logging.getLogger(__name__)
 
 REFLECTION_EVERY = 5
@@ -29,6 +23,7 @@ async def train_episode(
     episode_idx: int,
 ) -> float:
     obs = env.reset(task_id)
+    policy.safe_mode.reset()
     collector.reset()
 
     agent_totals = {r: 0.0 for r in policy.agents}
@@ -39,7 +34,6 @@ async def train_episode(
             action, messages=board, agent_votes=votes
         )
 
-        # memory + learning + trajectory
         for role, agent in policy.agents.items():
             r = rewards.get(role, 0.0)
             agent.memory.add(obs["metrics"], action, r, step)
@@ -48,7 +42,6 @@ async def train_episode(
 
         collector.log_step(step, obs, action, votes, rewards, next_obs, info)
 
-        # periodic reflection (long-term learning)
         if (step + 1) % REFLECTION_EVERY == 0:
             await asyncio.gather(*[a.reflect(obs) for a in policy.agents.values()])
 
@@ -59,7 +52,7 @@ async def train_episode(
     saved = collector.save_episode(f"{task_id}_ep{episode_idx}")
     grade = compute_final_grade(obs, task_id)
     logger.info(
-        f"Episode {episode_idx} [{task_id}] → grade={grade:.3f}  "
+        f"Episode {episode_idx} [{task_id}] grade={grade:.3f}  "
         f"steps={saved}  rewards={{{', '.join(f'{k}:{v:.3f}' for k,v in agent_totals.items())}}}"
     )
     return grade
@@ -87,7 +80,6 @@ async def train_loop(
 
     avg = sum(grades) / len(grades) if grades else 0.0
     logger.info(f"Training complete.  Mean grade over {len(grades)} episodes: {avg:.3f}")
-    logger.info("Agent memory streams contain accumulated experience for future episodes.")
 
 
 if __name__ == "__main__":

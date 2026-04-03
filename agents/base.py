@@ -1,72 +1,30 @@
 """
-Multi-Agent System -- Memory, Discussion, Voting, Reflection
+Agent base class + MemoryStream.
 
-Architecture per step:
-  1. Discussion  -- agents post proposals to a shared board
-  2. Voting      -- each agent scores ALL actions using state + memory + learning
-  3. Aggregation -- majority vote with collaboration detection
-  4. Memory      -- store (state, action, reward) with importance scoring
-  5. Reflection  -- periodic strategy summary
-
-Decision engine (heuristic mode):
-  * State-aware urgency scoring (react to metric levels & trends)
-  * Phase-based strategy (explore/optimize/correct/plan)
-  * Learned action values (updated from rewards, alpha=0.3)
-  * Repetition kill switch (penalize recent repeats)
-  * Epsilon-greedy + softmax exploration
-  * Discussion agreement bonus (drives collaboration)
-  * Memory-driven failure pattern detection & avoidance
-  * Diversity bonus for underused actions
-  * Explainable reasoning for every decision
+All agent intelligence lives here: urgency scoring, Q-learning,
+phase-based strategy, softmax sampling, LLM integration, reflection.
 """
 
 import json
 import math
-import asyncio
 import logging
-import copy
 import random as _py_random
 from typing import Dict, Any, List, Tuple
 from collections import Counter
 
 from openai import AsyncOpenAI
 
-import config
-from env_config import ACTIONS, AGENT_DEFS, ACTION_EFFECTS, MEMORY_CAPACITY
+from configs import api_config as config
+from configs.env_config import ACTIONS, ACTION_EFFECTS
+from configs.agent_config import (
+    MEMORY_CAPACITY, ALPHA, BASE_EPSILON, CRISIS_EPSILON,
+    SOFTMAX_TEMP, REPEAT_PENALTY, AGREEMENT_BONUS,
+    DIVERSITY_BONUS, MEMORY_AVOIDANCE, PHASE_STRATEGY, METRIC_LABELS,
+)
 
 logger = logging.getLogger(__name__)
 
-# -- Hyperparameters ---------------------------------------------------
-ALPHA = 0.3
-BASE_EPSILON = 0.15
-CRISIS_EPSILON = 0.4
-SOFTMAX_TEMP = 0.5
-REPEAT_PENALTY = 0.3
-AGREEMENT_BONUS = 0.2
-DIVERSITY_BONUS = 0.1
-MEMORY_AVOIDANCE = 0.15
 
-# Phase strategy modifiers
-PHASE_STRATEGY = {
-    "morning":   {"epsilon_mult": 1.4, "label": "EXPLORE",  "diversity_mult": 2.0, "repeat_mult": 0.5},
-    "execution": {"epsilon_mult": 0.5, "label": "OPTIMIZE", "diversity_mult": 0.5, "repeat_mult": 1.0},
-    "review":    {"epsilon_mult": 0.8, "label": "CORRECT",  "diversity_mult": 1.0, "repeat_mult": 1.5},
-    "planning":  {"epsilon_mult": 1.0, "label": "PLAN",     "diversity_mult": 1.5, "repeat_mult": 0.8},
-}
-
-# Metric display names for readable explanations
-METRIC_LABELS = {
-    "expected_profit": "profit",
-    "legal_risk": "legal risk",
-    "env_impact": "env impact",
-    "public_sentiment": "sentiment",
-    "cost": "cost",
-}
-
-
-# ======================================================================
-#  Memory Stream
-# ======================================================================
 class MemoryStream:
     """Per-agent episodic memory with importance-based eviction."""
 
@@ -105,13 +63,11 @@ class MemoryStream:
         return set(m["action"] for m in self.memories[-n:])
 
     def detect_failure_pattern(self) -> str | None:
-        """Detect if recent actions led to consistently negative rewards."""
         recent = self.recent(4)
         if len(recent) < 3:
             return None
         neg_count = sum(1 for m in recent if m["reward"] < -0.02)
         if neg_count >= 3:
-            # Identify the most repeated failing action
             fail_actions = [m["action"] for m in recent if m["reward"] < -0.02]
             if fail_actions:
                 counts = Counter(fail_actions)
@@ -133,9 +89,6 @@ class MemoryStream:
         self.reflections.clear()
 
 
-# ======================================================================
-#  Agent
-# ======================================================================
 class Agent:
     """Single agent with persona, learned action values, and explainable reasoning."""
 
@@ -159,28 +112,23 @@ class Agent:
         except Exception:
             self.client = None
 
-    # -- update action values from reward feedback ---------------------
     def update_values(self, action: str, reward: float):
         if action in self.action_values:
             old = self.action_values[action]
             self.action_values[action] = old + ALPHA * (reward - old)
 
     def top_values(self, n: int = 3) -> List[Tuple[str, float]]:
-        """Return top N learned action values for visibility."""
         return sorted(self.action_values.items(), key=lambda x: -x[1])[:n]
 
-    # -- identify most urgent metric for this agent --------------------
     def _find_trigger_metric(self, metrics: Dict[str, float]) -> Tuple[str, str]:
-        """Return (metric_name, human_reason) for the metric most demanding attention."""
         worst_metric = None
         worst_urgency = -999.0
         for m, w in self.reward_weights.items():
             val = metrics.get(m, 0.5)
-            # How urgent is this metric for this agent?
-            if w < 0:  # agent wants it LOW
-                urgency = val * abs(w)  # high value = bad
-            else:       # agent wants it HIGH
-                urgency = (1.0 - val) * w  # low value = bad
+            if w < 0:
+                urgency = val * abs(w)
+            else:
+                urgency = (1.0 - val) * w
             if urgency > worst_urgency:
                 worst_urgency = urgency
                 worst_metric = m
@@ -189,7 +137,6 @@ class Agent:
         direction = "too high" if self.reward_weights.get(worst_metric, 0) < 0 else "too low"
         return worst_metric, f"{label} is {direction} ({val:.2f})"
 
-    # -- state-aware urgency scoring -----------------------------------
     def _urgency_scores(self, metrics: Dict[str, float]) -> Dict[str, float]:
         scores: Dict[str, float] = {}
         for act in ACTIONS:
@@ -219,12 +166,7 @@ class Agent:
             scores[act] = score
         return scores
 
-    # -- full scoring pipeline with phase strategy ---------------------
-    def _score_actions(
-        self,
-        state: Dict[str, Any],
-        board_suggestions: Dict[str, int],
-    ) -> Dict[str, float]:
+    def _score_actions(self, state: Dict[str, Any], board_suggestions: Dict[str, int]) -> Dict[str, float]:
         metrics = state.get("metrics", {})
         phase = state.get("phase", "execution")
         phase_cfg = PHASE_STRATEGY.get(phase, PHASE_STRATEGY["execution"])
@@ -239,35 +181,29 @@ class Agent:
             s = urgency.get(act, 0.0)
             s += self.action_values.get(act, 0.0)
 
-            # Repetition kill (phase-modulated)
             repeat_count = recent_acts.count(act)
             if repeat_count >= 2:
                 s -= REPEAT_PENALTY * repeat_count * phase_cfg["repeat_mult"]
             elif repeat_count == 1:
                 s -= REPEAT_PENALTY * 0.5 * phase_cfg["repeat_mult"]
 
-            # Discussion agreement
             agreement = board_suggestions.get(act, 0)
             if agreement > 0:
                 s += AGREEMENT_BONUS * agreement
 
-            # Diversity (phase-modulated)
             if act not in used_recently and len(used_recently) > 0:
                 s += DIVERSITY_BONUS * phase_cfg["diversity_mult"]
 
-            # Memory-driven avoidance
             avg_r = self.memory.avg_reward_for_action(act)
             if avg_r < -0.05:
                 s -= MEMORY_AVOIDANCE
 
-            # Strategic failure avoidance
             if failure_action and act == failure_action:
-                s -= 0.5  # hard penalty for detected failure pattern
+                s -= 0.5
 
             scores[act] = s
         return scores
 
-    # -- softmax sampling ----------------------------------------------
     def _softmax_sample(self, scores: Dict[str, float]) -> str:
         actions = list(scores.keys())
         values = [scores[a] / SOFTMAX_TEMP for a in actions]
@@ -277,7 +213,6 @@ class Agent:
         probs = [e / total for e in exps]
         return self._rng.choices(actions, weights=probs, k=1)[0]
 
-    # -- epsilon computation (phase-aware) -----------------------------
     def _get_epsilon(self, phase: str = "execution") -> float:
         phase_cfg = PHASE_STRATEGY.get(phase, PHASE_STRATEGY["execution"])
         recent_r = self.memory.recent_rewards(3)
@@ -286,12 +221,7 @@ class Agent:
             base = CRISIS_EPSILON
         return min(0.5, base * phase_cfg["epsilon_mult"])
 
-    # -- main heuristic action with explanation ------------------------
-    def _heuristic_action(
-        self,
-        state: Dict[str, Any],
-        board_suggestions: Dict[str, int] | None = None,
-    ) -> str:
+    def _heuristic_action(self, state: Dict[str, Any], board_suggestions: Dict[str, int] | None = None) -> str:
         if board_suggestions is None:
             board_suggestions = {}
 
@@ -310,7 +240,6 @@ class Agent:
         else:
             chosen = self._softmax_sample(scores)
             phase_label = PHASE_STRATEGY.get(phase, {}).get("label", "?")
-            # Build explanation
             parts = [f"[{phase_label}]"]
             parts.append(f"Trigger: {trigger_reason}")
             if failure_action:
@@ -325,7 +254,6 @@ class Agent:
     def last_reason(self) -> str:
         return self._last_reason
 
-    # -- heuristic discussion message ----------------------------------
     def _heuristic_message(self, state: Dict[str, Any]) -> str:
         metrics = state.get("metrics", {})
         _, trigger_reason = self._find_trigger_metric(metrics)
@@ -333,7 +261,6 @@ class Agent:
         best_act = max(urgency, key=urgency.get)
         return f"[{self.role}] {trigger_reason}. I propose {best_act}."
 
-    # -- discuss -------------------------------------------------------
     async def discuss(self, state: Dict[str, Any], board: List[str]) -> str:
         if not config.OPENAI_API_KEY or not self.client:
             return self._heuristic_message(state)
@@ -354,13 +281,7 @@ class Agent:
         except Exception:
             return self._heuristic_message(state)
 
-    # -- vote ----------------------------------------------------------
-    async def vote(
-        self,
-        state: Dict[str, Any],
-        board: List[str],
-        board_suggestions: Dict[str, int] | None = None,
-    ) -> str:
+    async def vote(self, state: Dict[str, Any], board: List[str], board_suggestions: Dict[str, int] | None = None) -> str:
         if not config.OPENAI_API_KEY or not self.client:
             return self._heuristic_action(state, board_suggestions)
         prompt = (
@@ -382,13 +303,12 @@ class Agent:
             data = json.loads(resp.choices[0].message.content)
             action = data.get("action", "")
             if action in ACTIONS:
-                self._last_reason = f"LLM selected based on board consensus"
+                self._last_reason = "LLM selected based on board consensus"
                 return action
         except Exception:
             pass
         return self._heuristic_action(state, board_suggestions)
 
-    # -- reflect with failure detection --------------------------------
     async def reflect(self, state: Dict[str, Any]):
         recent = self.memory.recent(5)
         if not recent:
@@ -421,64 +341,3 @@ class Agent:
             self.memory.add_reflection(resp.choices[0].message.content.strip())
         except Exception:
             pass
-
-
-# ======================================================================
-#  Board Parsing
-# ======================================================================
-def _parse_board_suggestions(board: List[str]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    combined = " ".join(board).lower()
-    for act in ACTIONS:
-        act_search = act.replace("_", " ")
-        n = combined.count(act) + combined.count(act_search)
-        if n > 0:
-            counts[act] = n
-    return counts
-
-
-# ======================================================================
-#  Policy
-# ======================================================================
-class Policy:
-    """Orchestrates multi-agent coordination each step."""
-
-    def __init__(self, agents: Dict[str, Agent]):
-        self.agents = agents
-
-    async def run_step(self, state: Dict[str, Any]) -> Tuple[str, List[str], Dict[str, str]]:
-        """Returns (final_action, board_messages, agent_votes_dict)."""
-        roles = list(self.agents.keys())
-
-        # 1. Discussion -- parallel
-        discuss_tasks = [self.agents[r].discuss(state, []) for r in roles]
-        board = list(await asyncio.gather(*discuss_tasks))
-
-        # 2. Parse board for agreement signals
-        board_suggestions = _parse_board_suggestions(board)
-
-        # 3. Voting -- parallel, informed by board + agreement
-        vote_tasks = [
-            self.agents[r].vote(state, board, board_suggestions) for r in roles
-        ]
-        raw_votes = list(await asyncio.gather(*vote_tasks))
-
-        agent_votes = {r: v for r, v in zip(roles, raw_votes)}
-
-        # 4. Aggregate -- majority vote, alphabetical tie-break
-        counts: Dict[str, int] = {}
-        for v in raw_votes:
-            if v in ACTIONS:
-                counts[v] = counts.get(v, 0) + 1
-        if not counts:
-            counts[ACTIONS[0]] = 1
-        final_action = sorted(counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
-
-        return final_action, board, agent_votes
-
-
-# ======================================================================
-#  Factory
-# ======================================================================
-def make_agents() -> Dict[str, Agent]:
-    return {role: Agent(role, defn) for role, defn in AGENT_DEFS.items()}
