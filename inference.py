@@ -74,7 +74,7 @@ async def run_episode(env: Env, policy: Policy, task_id: str) -> float:
         collaborated = info.get("collaborated", False)
         if collaborated:
             collab_steps += 1
-        if di.get("ceo_override"):
+        if di.get("ceo_reason"):
             ceo_steps += 1
 
         collab_flag = "Y" if collaborated else "N"
@@ -98,7 +98,7 @@ async def run_episode(env: Env, policy: Policy, task_id: str) -> float:
             f"dC={deltas.get('cost',0):+.3f}"
         )
 
-        if di.get("ceo_override"):
+        if di.get("ceo_reason"):
             print(f"         !! {di['ceo_reason']}")
         else:
             coord_reason = di.get("coordinator_reason", "")

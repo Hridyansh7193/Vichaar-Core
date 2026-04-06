@@ -50,21 +50,11 @@ class Policy:
             "decision_source": "agents",
         }
 
-        # Layer 1: CEO Override
-        ceo_action, ceo_reason = CEO.check(metrics)
-        if ceo_action:
-            info["ceo_override"] = True
-            info["ceo_reason"] = ceo_reason
-            info["decision_source"] = "CEO"
-            discuss_tasks = [self.agents[r].discuss(state, []) for r in roles]
-            board = list(await asyncio.gather(*discuss_tasks))
-            agent_votes = {r: ceo_action for r in roles}
-            self._last_decision_info = info
-            return ceo_action, board, agent_votes
+
 
         # Layer 2 + 3: Coordinator Lookahead
         coord_action, coord_score, coord_reason = Coordinator.best_action(
-            metrics, safe_mode=self.safe_mode.active
+            metrics, safe_mode=self.safe_mode.active, history=state.get("history", [])
         )
         info["coordinator_pick"] = coord_action
         info["coordinator_score"] = coord_score
@@ -87,7 +77,7 @@ class Policy:
             if v in ACTIONS:
                 vote_counts[v] = vote_counts.get(v, 0) + 1
 
-        coord_ranking = Coordinator.rank_actions(metrics, safe_mode=self.safe_mode.active)
+        coord_ranking = Coordinator.rank_actions(metrics, safe_mode=self.safe_mode.active, history=state.get("history", []))
         coord_top3 = {a for a, _ in coord_ranking[:3]}
 
         blend_scores: Dict[str, float] = {}
@@ -113,13 +103,13 @@ class Policy:
         if self.safe_mode.active:
             info["decision_source"] += " [SAFE MODE]"
 
-        # Task 7: Safe Fallback Policy
+        # Minimal Safe Fallback
         trend = state.get("metrics_trend", [])
         if len(trend) >= 3:
             from decision.coordinator import compute_global_score
             if compute_global_score(trend[-1]) < compute_global_score(trend[-2]) < compute_global_score(trend[-3]):
-                final_action = "invest_in_safety"
-                info["decision_source"] = "SAFE FALLBACK (Unstable)"
+                final_action = Coordinator.rank_actions(metrics, history=state.get("history", []))[0][0]
+                info["decision_source"] = "SAFE FALLBACK (Dynamic)"
 
         self._last_decision_info = info
         return final_action, board, agent_votes

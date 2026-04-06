@@ -19,7 +19,10 @@ class Coordinator:
     def rank_actions(
         metrics: Dict[str, float],
         safe_mode: bool = False,
+        history: List[str] = None,
     ) -> List[Tuple[str, float]]:
+        if history is None: history = []
+        recent_history = history[-10:]
         # Chaos mode detection
         mean_val = sum(metrics.values()) / max(1, len(metrics))
         variance = sum((v - mean_val) ** 2 for v in metrics.values()) / max(1, len(metrics))
@@ -32,27 +35,52 @@ class Coordinator:
 
             effects = ACTION_EFFECTS.get(act, {})
             
-            # Action Filtering
+            # Action Constraints (Balanced Enforcement)
+            positive_impacts = 0
             negative_impacts = 0
-            push_below_threshold = False
+            extreme_metric = False
             for m, delta in effects.items():
                 w = GLOBAL_SCORE_WEIGHTS.get(m, 0.0)
-                if delta * w < 0:
-                    negative_impacts += 1
+                if delta * w > 0: positive_impacts += 1
+                elif delta * w < 0: negative_impacts += 1
                 
                 val = metrics.get(m, 0.0) + delta
-                if w > 0 and val < 0.15:
-                    push_below_threshold = True
-                if w < 0 and val > 0.85:
-                    push_below_threshold = True
+                if val < 0.1 or val > 0.9:
+                    extreme_metric = True
 
-            if negative_impacts > 2 or push_below_threshold:
+            # Reject actions that improve only 1 metric but harm 3+ metrics
+            if positive_impacts == 1 and negative_impacts >= 3:
                 continue
-                
+
             simulated = dict(metrics)
             for m, delta in effects.items():
                 simulated[m] = max(0.0, min(1.0, simulated.get(m, 0.0) + delta))
             score = compute_global_score(simulated)
+            
+            if negative_impacts >= 3:
+                score -= 0.3
+            if extreme_metric:
+                score -= 0.2
+            
+            # Action Mode Collapse Fix
+            if recent_history.count(act) >= 2:
+                score -= abs(score) * 0.25
+            if act == "reduce_cost":
+                score -= 0.15
+                
+            # Balanced Decision Preference
+            reduces_risk = effects.get("legal_risk", 0.0) < 0
+            if positive_impacts >= 2 or (reduces_risk and effects.get("cost", 0.0) <= 0.1):
+                score += 0.2
+
+            # High-Risk Response Priority Logic
+            if metrics.get("legal_risk", 0.0) > 0.6 and act in ["invest_in_safety", "vulnerability_audit"]:
+                score += 0.8
+            if metrics.get("env_impact", 0.0) > 0.6 and act == "green_innovation":
+                score += 0.8
+            if metrics.get("public_sentiment", 0.0) < 0.3 and act == "pr_campaign":
+                score += 0.8
+                
             results.append((act, score))
             
         results.sort(key=lambda x: -x[1])
@@ -75,6 +103,10 @@ class Coordinator:
                     
             avg_score = (base_score + best_s2) / 2.0
             
+            # Dead-end avoidance Check
+            if best_s2 < compute_global_score(metrics):
+                avg_score -= abs(avg_score) * 0.20
+            
             # Risk-aware control
             if metrics.get("legal_risk", 0.0) < 0.3 and act in ["launch_fast", "increase_production"]:
                 avg_score *= 0.7
@@ -91,15 +123,16 @@ class Coordinator:
             final_results.append((act, round(score, 4)))
             
         final_results.sort(key=lambda x: -x[1])
-        return final_results if final_results else [("invest_in_safety", 0.0)]
+        return final_results if final_results else results
 
     @staticmethod
     def best_action(
         metrics: Dict[str, float],
         safe_mode: bool = False,
+        history: List[str] = None,
     ) -> Tuple[str, float, str]:
         """Return (action, projected_score, explanation)."""
-        ranked = Coordinator.rank_actions(metrics, safe_mode=safe_mode)
+        ranked = Coordinator.rank_actions(metrics, safe_mode=safe_mode, history=history)
         best_act, best_score = ranked[0]
 
         effects = ACTION_EFFECTS.get(best_act, {})

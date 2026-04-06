@@ -1,26 +1,34 @@
-"""
-Vichaar-Core API Server
-
-Research-Grade Multi-Agent RL Simulation.
-Start: uvicorn server.app:app --host 0.0.0.0 --port 8000
-"""
-import logging
-import uvicorn
 from fastapi import FastAPI
-from server.routes import router
+from core.env import Env
 
-logging.basicConfig(level=logging.INFO)
+app = FastAPI()
+env = Env()
 
-app = FastAPI(
-    title="Vichaar-Core",
-    description="Strategic Multi-Agent RL Environment with CEO, Coordinator, and SafeMode",
-    version="2.0.0",
-)
+@app.post("/reset")
+async def reset():
+    obs = env.reset()
+    return {"observation": obs}
 
-app.include_router(router)
+@app.post("/step")
+async def step(action: dict):
+    # Depending on how the environment parses actions, 
+    # action might be wrapped (e.g. {"action": "some_action"})
+    act_str = action.get("action", "") if isinstance(action, dict) else str(action)
+    obs, reward, done, info = env.step(act_str)
+    return {
+        "observation": obs,
+        "reward": reward,
+        "done": done,
+        "info": info
+    }
+
+@app.get("/state")
+async def state():
+    return env.state()
 
 def main():
-    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

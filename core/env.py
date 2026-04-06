@@ -147,6 +147,10 @@ class Env(gym.Env):
 
         # Single scalar reward for standard Gym / OpenEnv strict compatibility
         global_reward = float(sum(multi_agent_rewards.values()) / len(multi_agent_rewards))
+        
+        unique_actions = len(set(self._state["history"][-5:])) if self._state["history"] else 1
+        global_reward += 0.03 * unique_actions
+        global_reward = max(0.0, min(1.0, global_reward))
 
         done = self._state["step_count"] >= self.max_steps
         info = {

@@ -178,7 +178,7 @@ python inference.py
 
 **4. Start Execution Server (For External API Judging)**
 ```bash
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+uvicorn api.app:app --host 0.0.0.0 --port 8000
 ```
 > *Exposes `/reset`, `/step`, `/run`, and `/state` standard endpoints.*
 

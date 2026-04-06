@@ -24,6 +24,8 @@ from configs.agent_config import (
 
 logger = logging.getLogger(__name__)
 
+GLOBAL_LLM_DISABLED = False
+
 
 class MemoryStream:
     """Per-agent episodic memory with importance-based eviction."""
@@ -266,35 +268,52 @@ class Agent:
         return f"[{self.role}] {trigger_reason}. I propose {best_act}."
 
     async def discuss(self, state: Dict[str, Any], board: List[str]) -> str:
-        if not config.OPENAI_API_KEY or not self.client:
+        global GLOBAL_LLM_DISABLED
+        if GLOBAL_LLM_DISABLED or not config.OPENAI_API_KEY or not self.client:
             return self._heuristic_message(state)
         prompt = (
-            f"You are the {self.role} agent. Goal: {self.desc}\n"
-            f"Board so far: {board}\n"
+            "You are an advanced multi-agent decision intelligence system.\n"
+            f"Your Role: {self.role} agent. Current Persona: {self.desc}\n"
+            "Objective: Maximize long-term G-score by balancing Profit, Ethics, Legal Risk, Sentiment, and Cost.\n"
+            f"Board so far (discussion): {board}\n"
             f"State metrics: {json.dumps(state.get('metrics', {}))}\n"
-            f"Reflection: {self.memory.latest_reflection()}\n\n"
+            f"Past Reflection: {self.memory.latest_reflection()}\n\n"
+            "CRITICAL RULES:\n"
+            "1. AVOID REPETITION: Do not blindly repeat the same actions.\n"
+            "2. MULTI-OBJECTIVE: Consider ALL dimensions, not just your specific role.\n"
+            "3. STRATEGIC CHOICE: If cost is high, consider stability over mere 'reduce_cost'.\n\n"
             "Write ONE sentence proposing your preferred next action and why."
         )
         try:
             resp = await self.client.chat.completions.create(
                 model=config.MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2, max_tokens=80,
+                temperature=0.3, max_tokens=100,
             )
             return f"[{self.role}] {resp.choices[0].message.content.strip()}"
         except Exception:
+            GLOBAL_LLM_DISABLED = True
             return self._heuristic_message(state)
 
     async def vote(self, state: Dict[str, Any], board: List[str], board_suggestions: Dict[str, int] | None = None) -> str:
-        if not config.OPENAI_API_KEY or not self.client:
+        global GLOBAL_LLM_DISABLED
+        if GLOBAL_LLM_DISABLED or not config.OPENAI_API_KEY or not self.client:
             return self._heuristic_action(state, board_suggestions)
         prompt = (
-            f"You are the {self.role} agent.\nPersona: {self.desc}\n"
-            f"Discussion Board:\n" + "\n".join(board) + "\n"
-            f"Metrics: {json.dumps(state.get('metrics', {}), indent=2)}\n"
-            f"Memory: {json.dumps(self.memory.recent(3), indent=2)}\n"
-            f"Valid actions: {ACTIONS}\n\n"
-            'Return JSON: {"action": "<exact_choice>"}'
+            "You are the ADVANCED MULTI-AGENT DECISION INTELLIGENCE system.\n"
+            "Expert Agents simulated internally: Profit, Ethics, PR, Legal, Risk.\n"
+            f"Your Specific Role: {self.role} | Persona: {self.desc}\n\n"
+            f"Discussion Board:\n" + "\n".join(board) + "\n\n"
+            f"CURRENT STATE METRICS:\n{json.dumps(state.get('metrics', {}), indent=2)}\n"
+            f"RECENT MEMORY:\n{json.dumps(self.memory.recent(3), indent=2)}\n\n"
+            "CORE OBJECTIVE: Maximize long-term G-score. Balance Profit, Ethics, Legal, Sentiment, and Cost.\n"
+            "CRITICAL RULES:\n"
+            "1. 🚫 NO REPETITION: Do not blindly repeat the same actions (especially 'reduce_cost').\n"
+            "2. ⚖️ MULTI-OBJECTIVE: Reference the CURRENT STATE values specifically in your reasoning.\n"
+            "3. 🧠 BOARDROOM DEBATE: Resolve conflicts between internal agent goals before choosing.\n"
+            "4. 🛡️ SAFE MODE: If metrics are unstable, prioritize safety and risk reduction.\n\n"
+            'Return ONLY JSON: {"action": "<one_selected_action>", "reason": "<specific_balancing_reasoning>"}\n'
+            "Avoid generic reasoning. Reference specific metric levels."
         )
         try:
             resp = await self.client.chat.completions.create(
@@ -302,22 +321,24 @@ class Agent:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 response_format={"type": "json_object"},
-                max_tokens=60,
+                max_tokens=120,
             )
             data = json.loads(resp.choices[0].message.content)
             action = data.get("action", "")
+            reason = data.get("reason", "Strategic choice based on multi-objective balance")
             if action in ACTIONS:
-                self._last_reason = "LLM selected based on board consensus"
+                self._last_reason = reason
                 return action
         except Exception:
-            pass
+            GLOBAL_LLM_DISABLED = True
         return self._heuristic_action(state, board_suggestions)
 
     async def reflect(self, state: Dict[str, Any]):
+        global GLOBAL_LLM_DISABLED
         recent = self.memory.recent(5)
         if not recent:
             return
-        if not config.OPENAI_API_KEY or not self.client:
+        if GLOBAL_LLM_DISABLED or not config.OPENAI_API_KEY or not self.client:
             avg_r = sum(m["reward"] for m in recent) / len(recent)
             action_counts = Counter(m["action"] for m in recent)
             most_used = action_counts.most_common(1)[0][0]
@@ -332,9 +353,10 @@ class Agent:
             self.memory.add_reflection(reflection)
             return
         prompt = (
-            f"You are {self.role}. Recent step history:\n"
+            f"You are the {self.role} agent. Reflect on your recent performance:\n"
             f"{json.dumps(recent, indent=2)}\n\n"
-            "Write 1 sentence: what strategy worked or failed, and what to do next."
+            "Analyze: Did you over-optimize for your own role at the cost of global G-score? Are you repeating actions? "
+            "Write 1-2 sentences on how to improve trade-offs across Profit, Ethics, Legal, Sentiment, and Cost."
         )
         try:
             resp = await self.client.chat.completions.create(
@@ -344,4 +366,4 @@ class Agent:
             )
             self.memory.add_reflection(resp.choices[0].message.content.strip())
         except Exception:
-            pass
+            GLOBAL_LLM_DISABLED = True
