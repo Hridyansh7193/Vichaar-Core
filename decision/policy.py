@@ -113,5 +113,13 @@ class Policy:
         if self.safe_mode.active:
             info["decision_source"] += " [SAFE MODE]"
 
+        # Task 7: Safe Fallback Policy
+        trend = state.get("metrics_trend", [])
+        if len(trend) >= 3:
+            from decision.coordinator import compute_global_score
+            if compute_global_score(trend[-1]) < compute_global_score(trend[-2]) < compute_global_score(trend[-3]):
+                final_action = "invest_in_safety"
+                info["decision_source"] = "SAFE FALLBACK (Unstable)"
+
         self._last_decision_info = info
         return final_action, board, agent_votes

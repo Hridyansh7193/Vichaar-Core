@@ -8,6 +8,8 @@ import copy
 import random as _random
 from typing import Dict, Any, Tuple, List
 from collections import Counter
+import gymnasium as gym
+from gymnasium import spaces
 
 from configs.env_config import (
     ACTIONS, ACTION_EFFECTS, EVENT_DEFS, PHASES,
@@ -17,13 +19,26 @@ from core.reward import per_agent_rewards
 from tasks import TASKS
 
 
-class Env:
+class Env(gym.Env):
     """OpenEnv-compliant multi-agent RL environment."""
 
     def __init__(self, seed: int = DEFAULT_SEED):
+        super().__init__()
         self._rng = _random.Random(seed)
         self.task_id: str = "medium"
         self.max_steps: int = DEFAULT_MAX_STEPS
+        
+        # Gymnasium spaces
+        self.action_space = spaces.Discrete(len(ACTIONS))
+        # Continuous metrics from 0.0 to 1.0
+        self.observation_space = spaces.Dict({
+            "expected_profit": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
+            "legal_risk": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
+            "env_impact": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
+            "public_sentiment": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
+            "cost": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
+        })
+
         self._state: Dict[str, Any] = self._empty_state()
 
     @staticmethod
@@ -128,12 +143,16 @@ class Env:
         self._state["metrics_trend"].append(copy.deepcopy(metrics))
 
         collaborated = self._detect_collaboration(agent_votes)
-        rewards = per_agent_rewards(prev_metrics, metrics, collaborated)
+        multi_agent_rewards = per_agent_rewards(prev_metrics, metrics, collaborated)
+
+        # Single scalar reward for standard Gym / OpenEnv strict compatibility
+        global_reward = float(sum(multi_agent_rewards.values()) / len(multi_agent_rewards))
 
         done = self._state["step_count"] >= self.max_steps
         info = {
             "events": events,
             "collaborated": collaborated,
             "agent_votes": agent_votes,
+            "rewards": multi_agent_rewards,  # preserved for inference loop
         }
-        return self.state(), rewards, done, info
+        return self.state(), global_reward, done, info

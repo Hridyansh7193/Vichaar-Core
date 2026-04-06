@@ -30,9 +30,10 @@ async def train_episode(
 
     for step in range(env.max_steps):
         action, board, votes = await policy.run_step(obs)
-        next_obs, rewards, done, info = env.step(
+        next_obs, step_reward, done, info = env.step(
             action, messages=board, agent_votes=votes
         )
+        rewards = info.get("rewards", {})
 
         for role, agent in policy.agents.items():
             r = rewards.get(role, 0.0)

@@ -3,8 +3,15 @@ Inference -- run all scenarios with strategic decision engine visibility.
 Shows: CEO overrides, Coordinator lookahead, Safe Mode, agent votes, learning.
 """
 
+import os
+from dotenv import load_dotenv
+
+# Ensure environment is loaded strictly before anything else
+load_dotenv()
 import sys
 import asyncio
+import logging
+import traceback
 from collections import Counter
 from core.env import Env
 from agents import make_agents
@@ -13,11 +20,13 @@ from decision.coordinator import compute_global_score
 from evaluation.grader import compute_final_grade
 from configs.agent_config import PHASE_STRATEGY
 
+logger = logging.getLogger(__name__)
 
 REFLECTION_EVERY = 5
 
 
 async def run_episode(env: Env, policy: Policy, task_id: str) -> float:
+    """Run a single episode and return the final grade."""
     obs = env.reset(task_id)
     policy.safe_mode.reset()
 
@@ -36,13 +45,20 @@ async def run_episode(env: Env, policy: Policy, task_id: str) -> float:
         phase = obs.get("phase", "execution")
         phase_label = PHASE_STRATEGY.get(phase, {}).get("label", "?")
 
-        action, board, votes = await policy.run_step(obs)
+        try:
+            action, board, votes = await policy.run_step(obs)
+        except Exception as exc:
+            logger.error(f"Policy error at step {step}: {exc}")
+            action = "invest_in_safety"  # safe fallback
+            board, votes = [], {r: action for r in policy.agents}
+
         actions_used.append(action)
         di = policy.decision_info
 
-        next_obs, rewards, done, info = env.step(
+        next_obs, step_reward, done, info = env.step(
             action, messages=board, agent_votes=votes
         )
+        rewards = info.get("rewards", {})
 
         for role, agent in policy.agents.items():
             r = rewards.get(role, 0.0)
@@ -128,16 +144,20 @@ async def run_episode(env: Env, policy: Policy, task_id: str) -> float:
 async def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
     print("\n" + "="*90)
     print("  Vichaar-Core -- Strategic Multi-Agent RL (Coordinator + CEO + Safe Mode)")
     print("="*90)
 
     from configs.api_config import OPENAI_API_BASE, MODEL_NAME, OPENAI_API_KEY
-    import os
     print(f"  Configuration Loaded:")
-    print(f"  - API_BASE_URL (or OPENAI_API_BASE): {OPENAI_API_BASE}")
-    print(f"  - MODEL_NAME: {MODEL_NAME}")
-    print(f"  - HF_TOKEN / OPENAI_API_KEY found: {'Yes' if OPENAI_API_KEY else 'No'}")
+    print(f"  - API_BASE_URL: {OPENAI_API_BASE}")
+    print(f"  - MODEL_NAME:   {MODEL_NAME}")
+    print(f"  - API Key:      {'Yes (set)' if OPENAI_API_KEY else 'No (heuristic mode)'}")
     print("="*90)
 
     env = Env()
@@ -148,11 +168,19 @@ async def main():
     results = {}
 
     for tid in tasks:
+        # Reset agent state between tasks for fair evaluation
         for a in agents.values():
             a.memory.clear()
             a.action_values = {act: 0.0 for act in a.action_values}
         policy.safe_mode.reset()
-        grade = await run_episode(env, policy, tid)
+
+        try:
+            grade = await run_episode(env, policy, tid)
+        except Exception as exc:
+            logger.error(f"Episode '{tid}' failed: {exc}")
+            traceback.print_exc()
+            grade = 0.0
+
         results[tid] = grade
 
     print("\n" + "="*54)

@@ -9,9 +9,9 @@ load_dotenv()
 
 # API key — supports HF_TOKEN, OPENROUTER_API_KEY, and OPENAI_API_KEY
 OPENAI_API_KEY = (
-    os.getenv("HF_TOKEN")
-    or os.getenv("OPENROUTER_API_KEY")
+    os.getenv("OPENROUTER_API_KEY")
     or os.getenv("OPENAI_API_KEY")
+    or os.getenv("HF_TOKEN")
 )
 
 # API base — supports API_BASE_URL (OpenEnv standard) and OPENAI_API_BASE

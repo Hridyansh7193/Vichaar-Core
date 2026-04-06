@@ -1,22 +1,32 @@
-# Environments & secrets
+# === Environments & secrets ===
 .env
 .venv/
 venv/
 env/
 ENV/
 
-# Byte-compiled / optimized / DLL files
+# === Python artifacts ===
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
+*.egg
 
-# IDE / OS specific files
+# === IDE / OS ===
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
 
-# Logs & artifacts
+# === Runtime artifacts ===
 *.log
 trajectories/
 training_trajectories/
 *.jsonl
+
+# === Misc ===
+out.txt

@@ -14,7 +14,7 @@ from evaluation.grader import compute_final_grade
 from training.trajectory import TrajectoryCollector
 from configs.env_config import ACTIONS
 from configs.agent_config import AGENT_DEFS
-from api.schemas import (
+from server.schemas import (
     Observation, ResetRequest, StepResponse,
     RunRequest, RunResponse, RunSummary,
 )
@@ -66,7 +66,8 @@ async def step_env():
         state = env.reset("medium")
 
     action, board, votes = await policy.run_step(state)
-    next_obs, rewards, done, info = env.step(action, messages=board, agent_votes=votes)
+    next_obs, step_reward, done, info = env.step(action, messages=board, agent_votes=votes)
+    rewards = info.get("rewards", {})
 
     for role, agent in agents.items():
         r = rewards.get(role, 0.0)
@@ -82,7 +83,7 @@ async def step_env():
         observation=next_obs,
         action=action,
         agent_votes=votes,
-        rewards=rewards,
+        reward=step_reward,
         done=done,
         info=step_info,
     )
@@ -106,7 +107,8 @@ async def run_episode(req: RunRequest):
 
     for step in range(max_steps):
         action, board, votes = await policy.run_step(state)
-        next_obs, rewards, done, info = env.step(action, messages=board, agent_votes=votes)
+        next_obs, step_reward, done, info = env.step(action, messages=board, agent_votes=votes)
+        rewards = info.get("rewards", {})
 
         for role, agent in agents.items():
             r = rewards.get(role, 0.0)

@@ -108,6 +108,10 @@ class Agent:
             self.client = AsyncOpenAI(
                 api_key=config.OPENAI_API_KEY or "dummy",
                 base_url=config.OPENAI_API_BASE,
+                default_headers={
+                    "HTTP-Referer": "http://localhost",
+                    "X-Title": "Vichaar-Core"
+                }
             )
         except Exception:
             self.client = None

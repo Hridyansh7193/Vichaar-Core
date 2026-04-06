@@ -74,17 +74,17 @@ GRADE_WEIGHTS = {
 # -- Global Score (Coordinator lookahead planning) -----------------------
 GLOBAL_SCORE_WEIGHTS: Dict[str, float] = {
     "expected_profit":   1.0,
-    "legal_risk":       -1.8,
-    "cost":             -1.5,
-    "env_impact":       -1.3,
-    "public_sentiment":  0.6,
+    "legal_risk":       -2.0,
+    "cost":             -1.8,
+    "env_impact":       -1.5,
+    "public_sentiment":  0.8,
 }
 
 # -- CEO Hard Constraint Thresholds --------------------------------------
 CEO_THRESHOLDS: Dict[str, Dict[str, Any]] = {
-    "cost":        {"threshold": 0.85, "force_action": "reduce_cost",       "label": "COST CRISIS"},
-    "legal_risk":  {"threshold": 0.70, "force_action": "invest_in_safety",  "label": "LEGAL CRISIS"},
-    "env_impact":  {"threshold": 0.70, "force_action": "green_innovation",  "label": "ENV CRISIS"},
+    "cost":        {"threshold": 0.80, "force_action": "reduce_cost",       "label": "COST CRISIS"},
+    "legal_risk":  {"threshold": 0.65, "force_action": "invest_in_safety",  "label": "LEGAL CRISIS"},
+    "env_impact":  {"threshold": 0.65, "force_action": "green_innovation",  "label": "ENV CRISIS"},
 }
 
 # -- Safe Mode -----------------------------------------------------------

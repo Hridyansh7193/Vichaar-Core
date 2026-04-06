@@ -31,7 +31,7 @@ class StepResponse(BaseModel):
     observation: Observation
     action: str
     agent_votes: Dict[str, str]
-    rewards: Dict[str, float]
+    reward: float
     done: bool
     info: Dict[str, Any]
 

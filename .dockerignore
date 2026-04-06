@@ -5,10 +5,12 @@
 __pycache__
 *.pyc
 *.pyo
+*.egg-info
 trajectories/
 training_trajectories/
 *.jsonl
 *.log
 .vscode/
 .idea/
-vichaar_core_guide.md
+docs/
+out.txt
