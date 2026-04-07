@@ -1,3 +1,11 @@
+---
+title: Vichaar-Core
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
 # 🚀 Vichaar-Core: Strategic Multi-Agent RL for Corporate Boardrooms
 
 [![OpenEnv Compliant](https://img.shields.io/badge/OpenEnv-Pass-brightgreen.svg)]()
