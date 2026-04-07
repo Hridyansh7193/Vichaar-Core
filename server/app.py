@@ -12,15 +12,12 @@ app = FastAPI(title="Vichaar-Core OpenEnv Server")
 # Initialize system
 # -------------------------------
 env = VichaarEnv()
-
-# initialize agents using factory
 agents = make_agents()
-
 policy = Policy(agents)
 
 
 # -------------------------------
-# ROOT (optional)
+# ROOT (IMPORTANT FOR HF)
 # -------------------------------
 @app.get("/")
 def root():
@@ -33,23 +30,23 @@ def root():
 @app.post("/reset")
 def reset():
     state = env.reset()
-    return {
-        "observation": state
-    }
+    return {"observation": state}
 
 
 # -------------------------------
-# STEP (🔥 FINAL FIXED VERSION)
+# STEP (FINAL SAFE VERSION)
 # -------------------------------
 @app.post("/step")
-async def step(action: Dict[str, Any] = Body(...)):
+async def step(action: Dict[str, Any] = Body(default={})):
     """
     OpenEnv-compatible step endpoint.
-    Ensures ONLY valid actions enter the environment.
-    Falls back to policy if input is invalid.
+    Always ensures valid action.
+    Never crashes.
     """
 
+    # -------------------------------
     # 1. Safe extraction
+    # -------------------------------
     act_str = ""
 
     if isinstance(action, dict):
@@ -59,24 +56,25 @@ async def step(action: Dict[str, Any] = Body(...)):
 
     act_str = str(act_str).strip()
 
-    # 2. Validate
+    # -------------------------------
+    # 2. Validate action
+    # -------------------------------
     is_valid = act_str in ACTIONS and act_str != ""
 
     if not is_valid:
         state = env.state()
 
         try:
-            # policy fallback
             act_str, board, votes = await policy.run_step(state)
 
-            # double safety
-            if act_str not in ACTIONS or act_str == "":
+            # 🔥 double safety (VERY IMPORTANT)
+            if act_str not in ACTIONS or not act_str:
                 act_str = "invest_in_safety"
                 board = []
                 votes = {}
 
         except Exception:
-            # hard fallback
+            # 🔥 NEVER crash
             act_str = "invest_in_safety"
             board = []
             votes = {}
@@ -88,9 +86,14 @@ async def step(action: Dict[str, Any] = Body(...)):
         )
 
     else:
-        # normal execution
+        # -------------------------------
+        # 3. Valid action
+        # -------------------------------
         obs, reward, done, info = env.step(act_str)
 
+    # -------------------------------
+    # 4. Response (STRICT FORMAT)
+    # -------------------------------
     return {
         "observation": obs,
         "reward": float(reward),
