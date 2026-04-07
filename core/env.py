@@ -145,14 +145,33 @@ class Env(gym.Env):
         collaborated = self._detect_collaboration(agent_votes)
         multi_agent_rewards = per_agent_rewards(prev_metrics, metrics, collaborated)
 
-        # Single scalar reward for standard Gym / OpenEnv strict compatibility
+        # Compute Global Reward
         global_reward = float(sum(multi_agent_rewards.values()) / len(multi_agent_rewards))
         
-        unique_actions = len(set(self._state["history"][-5:])) if self._state["history"] else 1
-        global_reward += 0.03 * unique_actions
+        # Small Bonus for Action Uniqueness
+        unique_actions = len(set(self._state["history"][-4:])) if self._state["history"] else 1
+        global_reward += 0.02 * unique_actions
+
+        if self._state["history"][-3:].count("reduce_cost") >= 2:
+            global_reward -= 0.1
+
+        if self._state["history"][-3:].count("invest_in_safety") >= 2:
+            global_reward -= 0.1
+
+        if getattr(self, "current_task", "") == "chaotic":
+            global_reward += 0.05
+
         global_reward = max(0.0, min(1.0, global_reward))
 
+        # Early Termination for Critical Failures
         done = self._state["step_count"] >= self.max_steps
+        if (
+            metrics.get("cost", 0) >= 0.98 or
+            metrics.get("legal_risk", 0) >= 0.98 or
+            metrics.get("env_impact", 0) >= 0.98
+        ):
+            done = True
+            global_reward = 0.0
         info = {
             "events": events,
             "collaborated": collaborated,

@@ -62,11 +62,18 @@ class Coordinator:
             if extreme_metric:
                 score -= 0.2
             
-            # Action Mode Collapse Fix
-            if recent_history.count(act) >= 2:
-                score -= abs(score) * 0.25
-            if act == "reduce_cost":
-                score -= 0.15
+            # --- Hard Anti-Loop Penalty (Flat, not scaling) ---
+            recents = recent_history[-4:] if len(recent_history) >= 4 else recent_history
+            if recents.count(act) >= 2:
+                score -= abs(score) * 0.8
+                
+            # --- Forced Exploration Boost ---
+            if len(recents) >= 3 and len(set(recents[-3:])) == 1:
+                if act in ["market_research", "pr_campaign", "green_innovation"]:
+                    score += 0.4  # Massive flat boost to break gridlock
+
+            if act in ["market_research", "green_innovation"]:
+                score += 0.3
                 
             # Balanced Decision Preference
             reduces_risk = effects.get("legal_risk", 0.0) < 0

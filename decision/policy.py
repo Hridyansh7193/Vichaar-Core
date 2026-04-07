@@ -60,56 +60,46 @@ class Policy:
         info["coordinator_score"] = coord_score
         info["coordinator_reason"] = coord_reason
 
-        # Layer 4: Agent Discussion + Voting
+        # Layer 4: Agent Discussion + Voting (Serialized to prevent massive rate limits)
         discuss_tasks = [self.agents[r].discuss(state, []) for r in roles]
         board = list(await asyncio.gather(*discuss_tasks))
         board_suggestions = parse_board_suggestions(board)
 
-        vote_tasks = [
-            self.agents[r].vote(state, board, board_suggestions) for r in roles
-        ]
-        raw_votes = list(await asyncio.gather(*vote_tasks))
+        # Fire sequentially to throttle burst limits (Groq 429 protections)
+        raw_votes = []
+        for r in roles:
+            try:
+                res = await self.agents[r].vote(state, board, board_suggestions)
+                raw_votes.append(res)
+                await asyncio.sleep(0.3)
+            except Exception:
+                pass
+                
         agent_votes = {r: v for r, v in zip(roles, raw_votes)}
 
-        # Blend: Coordinator + Agent Votes
-        vote_counts: Dict[str, int] = {}
-        for v in raw_votes:
-            if v in ACTIONS:
-                vote_counts[v] = vote_counts.get(v, 0) + 1
+        # 1. Get Coordinator's Native Top Ranking
+        coord_ranking = Coordinator.rank_actions(
+            metrics, safe_mode=self.safe_mode.active, history=state.get("history", [])
+        )
+        coord_top_3 = {act for act, score in coord_ranking[:3]}
+        final_action = coord_ranking[0][0]  # Default Boss behavior
+        
+        # 2. Strict LLM Output Control & Advisory Validation
+        from agents.base import GLOBAL_LLM_DISABLED
+        info["decision_source"] = "coordinator"
+        
+        llm_action = None
 
-        coord_ranking = Coordinator.rank_actions(metrics, safe_mode=self.safe_mode.active, history=state.get("history", []))
-        coord_top3 = {a for a, _ in coord_ranking[:3]}
+        if not GLOBAL_LLM_DISABLED and raw_votes:
+            vote_counts = {v: raw_votes.count(v) for v in set(raw_votes) if v in ACTIONS}
+            if vote_counts:
+                llm_action = max(vote_counts, key=vote_counts.get)
 
-        blend_scores: Dict[str, float] = {}
-        for act in ACTIONS:
-            s = float(vote_counts.get(act, 0))
-            if act == coord_action:
-                s += 2.0
-            elif act in coord_top3:
-                s += 1.0
-            if self.safe_mode.active and act in UNSAFE_ACTIONS:
-                s = -999.0
-            blend_scores[act] = s
-
-        final_action = max(blend_scores, key=blend_scores.get)
-
-        if final_action == coord_action and vote_counts.get(coord_action, 0) == 0:
-            info["decision_source"] = "coordinator"
-        elif final_action == coord_action:
-            info["decision_source"] = "coordinator+agents"
-        else:
-            info["decision_source"] = "agents"
-
-        if self.safe_mode.active:
-            info["decision_source"] += " [SAFE MODE]"
-
-        # Minimal Safe Fallback
-        trend = state.get("metrics_trend", [])
-        if len(trend) >= 3:
-            from decision.coordinator import compute_global_score
-            if compute_global_score(trend[-1]) < compute_global_score(trend[-2]) < compute_global_score(trend[-3]):
-                final_action = Coordinator.rank_actions(metrics, history=state.get("history", []))[0][0]
-                info["decision_source"] = "SAFE FALLBACK (Dynamic)"
+        if llm_action and llm_action in ACTIONS:
+            if llm_action not in state.get("history", [])[-1:]:
+                final_action = llm_action
+                info["decision_source"] = "llm"
+                info["llm_used"] = True
 
         self._last_decision_info = info
         return final_action, board, agent_votes

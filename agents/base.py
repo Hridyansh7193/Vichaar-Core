@@ -268,32 +268,8 @@ class Agent:
         return f"[{self.role}] {trigger_reason}. I propose {best_act}."
 
     async def discuss(self, state: Dict[str, Any], board: List[str]) -> str:
-        global GLOBAL_LLM_DISABLED
-        if GLOBAL_LLM_DISABLED or not config.OPENAI_API_KEY or not self.client:
-            return self._heuristic_message(state)
-        prompt = (
-            "You are an advanced multi-agent decision intelligence system.\n"
-            f"Your Role: {self.role} agent. Current Persona: {self.desc}\n"
-            "Objective: Maximize long-term G-score by balancing Profit, Ethics, Legal Risk, Sentiment, and Cost.\n"
-            f"Board so far (discussion): {board}\n"
-            f"State metrics: {json.dumps(state.get('metrics', {}))}\n"
-            f"Past Reflection: {self.memory.latest_reflection()}\n\n"
-            "CRITICAL RULES:\n"
-            "1. AVOID REPETITION: Do not blindly repeat the same actions.\n"
-            "2. MULTI-OBJECTIVE: Consider ALL dimensions, not just your specific role.\n"
-            "3. STRATEGIC CHOICE: If cost is high, consider stability over mere 'reduce_cost'.\n\n"
-            "Write ONE sentence proposing your preferred next action and why."
-        )
-        try:
-            resp = await self.client.chat.completions.create(
-                model=config.MODEL_NAME,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3, max_tokens=100,
-            )
-            return f"[{self.role}] {resp.choices[0].message.content.strip()}"
-        except Exception:
-            GLOBAL_LLM_DISABLED = True
-            return self._heuristic_message(state)
+        # Optimized: Native Heuristic Bypass (0 API calls, massive speedup)
+        return self._heuristic_message(state)
 
     async def vote(self, state: Dict[str, Any], board: List[str], board_suggestions: Dict[str, int] | None = None) -> str:
         global GLOBAL_LLM_DISABLED
@@ -320,50 +296,47 @@ class Agent:
                 model=config.MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                response_format={"type": "json_object"},
-                max_tokens=120,
+                max_tokens=120, timeout=8.0
             )
-            data = json.loads(resp.choices[0].message.content)
-            action = data.get("action", "")
-            reason = data.get("reason", "Strategic choice based on multi-objective balance")
+            raw_content = resp.choices[0].message.content.strip()
+            
+            import re
+            action = ""
+            match = re.search(r'"action"\s*:\s*"([^"]+)"', raw_content, re.IGNORECASE)
+            if match and match.group(1) in ACTIONS:
+                action = match.group(1)
+            else:
+                for act in ACTIONS:
+                    if act in raw_content:
+                        action = act
+                        break
+
             if action in ACTIONS:
-                self._last_reason = reason
+                self._last_reason = "LLM Executed"
                 return action
-        except Exception:
-            GLOBAL_LLM_DISABLED = True
+        except Exception as e:
+            print(f"[Groq LLM Notice] Agent vote suppressed dynamically: {e}")
+            # Removing global latch prevents 1-flips permanently disabling intelligence
+            pass
         return self._heuristic_action(state, board_suggestions)
 
     async def reflect(self, state: Dict[str, Any]):
-        global GLOBAL_LLM_DISABLED
+        # Optimized: purely native reflection analytics (0 API calls locally executing)
         recent = self.memory.recent(5)
         if not recent:
             return
-        if GLOBAL_LLM_DISABLED or not config.OPENAI_API_KEY or not self.client:
-            avg_r = sum(m["reward"] for m in recent) / len(recent)
-            action_counts = Counter(m["action"] for m in recent)
-            most_used = action_counts.most_common(1)[0][0]
-            failure = self.memory.detect_failure_pattern()
-            reflection = f"Avg reward {avg_r:.3f}. Most used: {most_used}."
-            if failure:
-                reflection += f" DETECTED FAILURE: {failure} causing losses. Switching strategy."
-            elif avg_r < 0.01:
-                reflection += " Low returns. Diversify actions."
-            else:
-                reflection += " Current approach working."
-            self.memory.add_reflection(reflection)
-            return
-        prompt = (
-            f"You are the {self.role} agent. Reflect on your recent performance:\n"
-            f"{json.dumps(recent, indent=2)}\n\n"
-            "Analyze: Did you over-optimize for your own role at the cost of global G-score? Are you repeating actions? "
-            "Write 1-2 sentences on how to improve trade-offs across Profit, Ethics, Legal, Sentiment, and Cost."
-        )
-        try:
-            resp = await self.client.chat.completions.create(
-                model=config.MODEL_NAME,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0, max_tokens=80,
-            )
-            self.memory.add_reflection(resp.choices[0].message.content.strip())
-        except Exception:
-            GLOBAL_LLM_DISABLED = True
+            
+        avg_r = sum(m["reward"] for m in recent) / len(recent)
+        action_counts = Counter(m["action"] for m in recent)
+        most_used = action_counts.most_common(1)[0][0]
+        failure = self.memory.detect_failure_pattern()
+        
+        reflection = f"Avg reward {avg_r:.3f}. Most used: {most_used}."
+        if failure:
+            reflection += f" DETECTED FAILURE: {failure} causing losses. Switching strategy."
+        elif avg_r < 0.01:
+            reflection += " Low returns. Diversify actions."
+        else:
+            reflection += " Current approach working."
+            
+        self.memory.add_reflection(reflection)
