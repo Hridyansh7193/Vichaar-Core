@@ -296,6 +296,7 @@ class Agent:
                 model=config.MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
+                seed=42,
                 max_tokens=120, timeout=8.0
             )
             raw_content = resp.choices[0].message.content.strip()

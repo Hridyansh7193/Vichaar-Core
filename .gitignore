@@ -30,3 +30,4 @@ training_trajectories/
 
 # === Misc ===
 out.txt
+gradio_app

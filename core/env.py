@@ -22,9 +22,11 @@ from tasks import TASKS
 class Env(gym.Env):
     """OpenEnv-compliant multi-agent RL environment."""
 
-    def __init__(self, seed: int = DEFAULT_SEED):
+    def __init__(self, seed: int = DEFAULT_SEED, deterministic: bool = True):
         super().__init__()
+        self._seed = seed
         self._rng = _random.Random(seed)
+        self.deterministic: bool = deterministic
         self.task_id: str = "medium"
         self.max_steps: int = DEFAULT_MAX_STEPS
         
@@ -68,6 +70,9 @@ class Env(gym.Env):
         if task_id not in TASKS:
             task_id = "medium"
 
+        # Re-seed RNG for deterministic episodes
+        self._rng = _random.Random(self._seed)
+
         self.task_id = task_id
         task = TASKS[task_id]
         self.max_steps = task.get("max_steps", DEFAULT_MAX_STEPS)
@@ -99,7 +104,7 @@ class Env(gym.Env):
     def _fire_events(self, metrics: Dict[str, float]) -> List[str]:
         triggered: List[str] = []
         for name, cfg in EVENT_DEFS.items():
-            if self._rng.random() < cfg["prob"]:
+            if not self.deterministic and self._rng.random() < cfg["prob"]:
                 triggered.append(name)
                 for m, delta in cfg["effects"].items():
                     metrics[m] = self._clamp(metrics.get(m, 0.0) + delta)
@@ -147,20 +152,38 @@ class Env(gym.Env):
 
         # Compute Global Reward
         global_reward = float(sum(multi_agent_rewards.values()) / len(multi_agent_rewards))
-        
-        # Small Bonus for Action Uniqueness
+
+        # Action Uniqueness Bonus
         unique_actions = len(set(self._state["history"][-4:])) if self._state["history"] else 1
         global_reward += 0.02 * unique_actions
 
-        if self._state["history"][-3:].count("reduce_cost") >= 2:
-            global_reward -= 0.1
+        # Strong Anti-Loop Penalty (generic — ANY repeated action)
+        if len(self._state["history"]) >= 3:
+            if self._state["history"][-3:].count(action) >= 2:
+                global_reward -= 0.15
 
-        if self._state["history"][-3:].count("invest_in_safety") >= 2:
-            global_reward -= 0.1
+        # Balanced Metrics Reward
+        metric_vals = list(metrics.values())
+        if metric_vals:
+            spread = max(metric_vals) - min(metric_vals)
+            global_reward += (1.0 - spread) * 0.05
+
+        # Extreme State Penalties
+        if metrics.get("legal_risk", 0) > 0.8:
+            global_reward -= 0.2
+        if metrics.get("cost", 0) > 0.9:
+            global_reward -= 0.2
+        if metrics.get("env_impact", 0) > 0.8:
+            global_reward -= 0.2
+
+        # Boosted Collaboration Bonus
+        if collaborated:
+            global_reward += 0.1
 
         if getattr(self, "current_task", "") == "chaotic":
             global_reward += 0.05
 
+        # Final Clamp
         global_reward = max(0.0, min(1.0, global_reward))
 
         # Early Termination for Critical Failures

@@ -94,6 +94,7 @@ async def step(action: Dict[str, Any] = Body(default={})):
     # -------------------------------
     # 4. Response (STRICT FORMAT)
     # -------------------------------
+    info["action"] = act_str
     return {
         "observation": obs,
         "reward": float(reward),

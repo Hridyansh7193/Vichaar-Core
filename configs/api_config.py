@@ -14,12 +14,10 @@ OPENAI_API_KEY = (
     or os.getenv("HF_TOKEN")
 )
 
-# API base — supports API_BASE_URL (OpenEnv standard) and OPENAI_API_BASE
+# API base — for LLM completions (OpenRouter / OpenAI / HF)
 OPENAI_API_BASE = (
-    os.getenv("API_BASE_URL")
-    or os.getenv("OPENAI_API_BASE")
-    or "https://api-inference.huggingface.co/v1"
-)
+    os.getenv("OPENAI_API_BASE")
+) # Removed API_BASE_URL fallback because that points to the local HTTP server, not the LLM!
 
 # Model name
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
