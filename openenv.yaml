@@ -1,24 +1,27 @@
 tasks:
   - id: easy
-    description: basic scenario
     grader:
       type: scalar
       evaluation: |
         m = observation["metrics"]
-        return (m["expected_profit"] + m["public_sentiment"] + (1 - m["legal_risk"])) / 3
+        return float(
+          (m["expected_profit"] + m["public_sentiment"] + (1 - m["legal_risk"])) / 3
+        )
 
   - id: medium
-    description: medium scenario
     grader:
       type: scalar
       evaluation: |
         m = observation["metrics"]
-        return (m["expected_profit"] + (1 - m["legal_risk"]) + m["public_sentiment"]) / 3
+        return float(
+          (m["expected_profit"] + (1 - m["legal_risk"]) + m["public_sentiment"]) / 3
+        )
 
   - id: hard
-    description: hard scenario
     grader:
       type: scalar
       evaluation: |
         m = observation["metrics"]
-        return (m["expected_profit"] + (1 - m["env_impact"]) + (1 - m["legal_risk"])) / 3
+        return float(
+          (m["expected_profit"] + (1 - m["env_impact"]) + (1 - m["legal_risk"])) / 3
+        )

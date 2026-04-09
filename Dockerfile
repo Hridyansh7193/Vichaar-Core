@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY . /app
 
 # Create runtime directories
 RUN mkdir -p trajectories training_trajectories
