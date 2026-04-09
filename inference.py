@@ -33,7 +33,9 @@ async def run_inference_async():
         agents = make_agents()
         policy = Policy(agents)
         
-        state = env.reset()
+        # Respect TASK_ID if provided by the evaluation orchestrator
+        task_id = os.getenv("TASK_ID", "medium")
+        state = env.reset(task_id=task_id)
 
         done = False
         step_num = 1
@@ -86,7 +88,7 @@ async def run_inference_async():
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
 
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
+        f"[END] task={os.getenv('TASK_ID', 'medium')} success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True
     )
 
