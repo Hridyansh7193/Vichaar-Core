@@ -1,5 +1,5 @@
 TASK = {
-    "id": "hard",
+    "id": "task_hard",
     "name": "Arctic Deep Mining",
     "scenario": "High Conflict: Deep-sea mining in the Arctic. Extreme profit potential vs devastating environmental impact and geopolitical tension.",
     "metrics": {
@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"rigs": 2, "local_wildlife_index": 1.0},
     "max_steps": 20,
-    "grader": "evaluation.grader:compute_final_grade",
+    "grader": "evaluation.grader:grade_hard",
 }

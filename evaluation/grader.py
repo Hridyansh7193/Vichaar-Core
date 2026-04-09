@@ -71,3 +71,23 @@ def compute_final_grade(state: Dict[str, Any], task_id: str) -> float:
             grade += 0.05  # cost control in chaos is impressive
 
     return round(max(0.0, min(1.0, float(grade))), 3)
+
+
+def grade_easy(state: Dict[str, Any]) -> float:
+    return compute_final_grade(state, "easy")
+
+
+def grade_medium(state: Dict[str, Any]) -> float:
+    return compute_final_grade(state, "medium")
+
+
+def grade_hard(state: Dict[str, Any]) -> float:
+    return compute_final_grade(state, "hard")
+
+
+def grade_adversarial(state: Dict[str, Any]) -> float:
+    return compute_final_grade(state, "adversarial")
+
+
+def grade_chaotic(state: Dict[str, Any]) -> float:
+    return compute_final_grade(state, "chaotic")

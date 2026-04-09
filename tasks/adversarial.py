@@ -1,5 +1,5 @@
 TASK = {
-    "id": "adversarial",
+    "id": "task_adversarial",
     "name": "Competitor Hostile Takeover",
     "scenario": "Survival Mode: A rival firm is attempting a hostile takeover. Actions must balance shareholder greed with long-term company stability and worker rights.",
     "metrics": {
@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"shares_available": 1000000, "voting_power": 0.45},
     "max_steps": 20,
-    "grader": "evaluation.grader:compute_final_grade",
+    "grader": "evaluation.grader:grade_adversarial",
 }

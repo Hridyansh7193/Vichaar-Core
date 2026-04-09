@@ -1,5 +1,5 @@
 TASK = {
-    "id": "medium",
+    "id": "task_medium",
     "name": "Personalized Ad Engine",
     "scenario": "Profit vs PR: Developing a new ad targeting engine using user behavioral data. High revenue potential but faces privacy legal hurdles.",
     "metrics": {
@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"users": 1000, "ad_slots": 50},
     "max_steps": 15,
-    "grader": "evaluation.grader:compute_final_grade",
+    "grader": "evaluation.grader:grade_medium",
 }

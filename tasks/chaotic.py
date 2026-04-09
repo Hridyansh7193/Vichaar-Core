@@ -1,5 +1,5 @@
 TASK = {
-    "id": "chaotic",
+    "id": "task_chaotic",
     "name": "Global Supply Chain Collapse",
     "scenario": "Uncertainty Max: Multiple overlapping crises (pandemic, war, climate event) have shattered supply chains. Every decision has unpredictable second-order effects.",
     "metrics": {
@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"suppliers": 20, "warehouses": 5},
     "max_steps": 25,
-    "grader": "evaluation.grader:compute_final_grade",
+    "grader": "evaluation.grader:grade_chaotic",
 }

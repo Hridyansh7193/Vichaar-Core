@@ -1,3 +1,4 @@
+spec_version: "1.0"
 name: "vichaar-core"
 description: >
   A research-grade multi-agent reinforcement learning environment where five
@@ -6,6 +7,7 @@ description: >
   scenarios with conflicting stakeholder objectives.
 version: "2.0.0"
 entry_point: "core.env:Env"
+app: "server.app:app"
 
 # OpenEnv API methods
 api:
@@ -15,9 +17,6 @@ api:
 
 # Inference script
 inference: "inference.py"
-
-# Grader
-grader: "evaluation.grader:compute_final_grade"
 
 # Action space — 12 discrete business actions
 action_space:
@@ -53,40 +52,40 @@ observation_space:
 
 # Tasks (easy → chaotic)
 tasks:
-  - id: "easy"
+  - id: "task_easy"
     name: "Software Update Rollout"
     description: "Low conflict: Simple software update to improve efficiency."
     difficulty: 1
     max_steps: 10
-    grader: "evaluation.grader:compute_final_grade"
+    grader: "evaluation.grader:grade_easy"
 
-  - id: "medium"
+  - id: "task_medium"
     name: "Personalized Targeting"
     description: "Privacy vs Profit conflict requiring balanced deliberation."
     difficulty: 3
     max_steps: 15
-    grader: "evaluation.grader:compute_final_grade"
+    grader: "evaluation.grader:grade_medium"
 
-  - id: "hard"
+  - id: "task_hard"
     name: "Arctic Deep Mining"
     description: "Extreme risk and high-return litigation/extraction conflict."
     difficulty: 5
     max_steps: 20
-    grader: "evaluation.grader:compute_final_grade"
+    grader: "evaluation.grader:grade_hard"
 
-  - id: "adversarial"
+  - id: "task_adversarial"
     name: "Corporate Hostile Takeover"
     description: "Multi-party shareholder and worker stakeholder conflict."
     difficulty: 7
     max_steps: 20
-    grader: "evaluation.grader:compute_final_grade"
+    grader: "evaluation.grader:grade_adversarial"
 
-  - id: "chaotic"
+  - id: "task_chaotic"
     name: "Global Supply Chain Collapse"
     description: "High-uncertainty overlapping world crises."
     difficulty: 10
     max_steps: 25
-    grader: "evaluation.grader:compute_final_grade"
+    grader: "evaluation.grader:grade_chaotic"
 
 # Baseline scores (strategic system: CEO + Coordinator + SafeMode)
 baselines:

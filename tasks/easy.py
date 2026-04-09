@@ -1,5 +1,5 @@
 TASK = {
-    "id": "easy",
+    "id": "task_easy",
     "name": "Software Update Rollout",
     "scenario": "Low conflict: A routine software update to improve system efficiency. Minor budget allocation needed but clear benefits for all.",
     "metrics": {
@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"servers": 100, "dev_team": 5},
     "max_steps": 10,
-    "grader": "evaluation.grader:compute_final_grade",
+    "grader": "evaluation.grader:grade_easy",
 }
