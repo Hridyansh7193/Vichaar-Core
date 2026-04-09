@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"users": 1000, "ad_slots": 50},
     "max_steps": 15,
-    "grader": "tasks.graders:grade_medium",
+    "grader": "tasks.grader:grade_medium",
 }
