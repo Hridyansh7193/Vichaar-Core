@@ -65,7 +65,7 @@ class Policy:
         board = list(await asyncio.gather(*discuss_tasks))
         board_suggestions = parse_board_suggestions(board)
 
-        # Fire sequentially to throttle burst limits (Groq 429 protections)
+        # Fire sequentially to throttle burst limits (API 429 protections)
         raw_votes = []
         for r in roles:
             try:

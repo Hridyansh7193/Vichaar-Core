@@ -106,10 +106,11 @@ class Agent:
         seed_offset = hash(role) % 10000
         self._rng = _py_random.Random(42 + seed_offset)
 
+        import os
         try:
             self.client = AsyncOpenAI(
-                api_key=config.OPENAI_API_KEY or "dummy",
-                base_url=config.OPENAI_API_BASE,
+                api_key=os.environ.get("API_KEY", config.OPENAI_API_KEY or "dummy"),
+                base_url=os.environ.get("API_BASE_URL", config.OPENAI_API_BASE),
                 default_headers={
                     "HTTP-Referer": "http://localhost",
                     "X-Title": "Vichaar-Core"
@@ -316,7 +317,7 @@ class Agent:
                 self._last_reason = "LLM Executed"
                 return action
         except Exception as e:
-            print(f"[Groq LLM Notice] Agent vote suppressed dynamically: {e}")
+            print(f"[LLM Notice] Agent vote suppressed dynamically: {e}")
             # Removing global latch prevents 1-flips permanently disabling intelligence
             pass
         return self._heuristic_action(state, board_suggestions)
