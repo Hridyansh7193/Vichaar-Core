@@ -1,0 +1,4 @@
+Task ID: easy
+Metrics: {'expected_profit': 0.5, 'public_sentiment': 0.6, 'legal_risk': 0.0, 'env_impact': 0.0, 'cost': 0.6}
+Initial Grade (weighted): 0.310
+Final Score: 0.310
