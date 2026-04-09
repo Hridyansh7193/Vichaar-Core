@@ -11,4 +11,5 @@ TASK = {
     },
     "entities": {"users": 1000, "ad_slots": 50},
     "max_steps": 15,
+    "grader": "evaluation.grader:compute_final_grade",
 }

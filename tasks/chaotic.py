@@ -11,4 +11,5 @@ TASK = {
     },
     "entities": {"suppliers": 20, "warehouses": 5},
     "max_steps": 25,
+    "grader": "evaluation.grader:compute_final_grade",
 }

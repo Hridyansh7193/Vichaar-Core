@@ -11,4 +11,5 @@ TASK = {
     },
     "entities": {"servers": 100, "dev_team": 5},
     "max_steps": 10,
+    "grader": "evaluation.grader:compute_final_grade",
 }
