@@ -28,6 +28,6 @@ EXPOSE 8000
 
 # Health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/')" || exit 1
 
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
