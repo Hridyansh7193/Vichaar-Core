@@ -55,37 +55,37 @@ tasks:
   - id: "easy"
     name: "Software Update Rollout"
     description: "Low conflict: Simple software update to improve efficiency."
-    difficulty: 1
+    difficulty: "easy"
     max_steps: 10
-    grader: "grader:grade_easy"
+    grader: "tasks.grader:grade_easy"
 
   - id: "medium"
     name: "Personalized Targeting"
     description: "Privacy vs Profit conflict requiring balanced deliberation."
-    difficulty: 3
+    difficulty: "medium"
     max_steps: 15
-    grader: "grader:grade_medium"
+    grader: "tasks.grader:grade_medium"
 
   - id: "hard"
     name: "Arctic Deep Mining"
     description: "Extreme risk and high-return litigation/extraction conflict."
-    difficulty: 5
+    difficulty: "hard"
     max_steps: 20
-    grader: "grader:grade_hard"
+    grader: "tasks.grader:grade_hard"
 
   - id: "adversarial"
     name: "Corporate Hostile Takeover"
     description: "Multi-party shareholder and worker stakeholder conflict."
-    difficulty: 7
+    difficulty: "hard"
     max_steps: 20
-    grader: "grader:grade_adversarial"
+    grader: "tasks.grader:grade_adversarial"
 
   - id: "chaotic"
     name: "Global Supply Chain Collapse"
     description: "High-uncertainty overlapping world crises."
-    difficulty: 10
+    difficulty: "extreme"
     max_steps: 25
-    grader: "grader:grade_chaotic"
+    grader: "tasks.grader:grade_chaotic"
 
 # Baseline scores (strategic system: CEO + Coordinator + SafeMode)
 baselines:
