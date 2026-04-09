@@ -13,7 +13,7 @@ api:
 tasks:
   - id: easy
     name: "Software Update Rollout"
-    description: "basic"
+    description: "easy"
     difficulty: easy
     grader: "tasks.grader:grade_easy"
 

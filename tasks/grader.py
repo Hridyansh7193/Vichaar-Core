@@ -8,21 +8,6 @@ import os
 from typing import Dict, Any
 from configs.env_config import GRADE_WEIGHTS
 
-def generate_report(task_id: str, metrics: Dict[str, Any], initial_grade: float, final_score: float) -> None:
-    """Generate a grading report text file specifically in the tasks/ directory."""
-    # Ensure it writes into the 'tasks' directory regardless of execution context
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    report_path = os.path.join(current_dir, f"grader_report_{task_id}.txt")
-    
-    try:
-        with open(report_path, "w") as f:
-            f.write(f"Task ID: {task_id}\n")
-            f.write(f"Metrics: {metrics}\n")
-            f.write(f"Initial Grade (weighted): {initial_grade:.3f}\n")
-            f.write(f"Final Score: {final_score:.3f}\n")
-    except Exception as e:
-        print(f"Failed to write report: {e}")
-
 def compute_final_grade(state: Dict[str, Any], task_id: str, *args, **kwargs) -> float:
     """Compute final episode grade from terminal state metrics.
 
@@ -87,26 +72,38 @@ def compute_final_grade(state: Dict[str, Any], task_id: str, *args, **kwargs) ->
 
     final_score = round(max(0.0, min(1.0, float(grade))), 3)
 
-    # Automatically generate the report in the tasks folder
-    generate_report(task_id, m, grade, final_score)
+    # OpenEnv Grader Required File Output
+    try:
+        # Write to grader_report.txt as requested
+        with open("grader_report.txt", "w") as f:
+            f.write(f"Task ID: {task_id}\n")
+            f.write(f"Metrics: {m}\n")
+            f.write(f"Initial Grade (weighted): {grade:.3f}\n")
+            f.write(f"Final Score: {final_score:.3f}\n")
+    except Exception:
+        print(Exception)
         
     return final_score
 
 
 def grade_easy(state: Dict[str, Any], *args, **kwargs) -> float:
-    return compute_final_grade(state, "easy")
+    return compute_final_grade(state, "easy", *args, **kwargs)
+
 
 def grade_medium(state: Dict[str, Any], *args, **kwargs) -> float:
-    return compute_final_grade(state, "medium")
+    return compute_final_grade(state, "medium", *args, **kwargs)
+
 
 def grade_hard(state: Dict[str, Any], *args, **kwargs) -> float:
-    return compute_final_grade(state, "hard")
+    return compute_final_grade(state, "hard", *args, **kwargs)
+
 
 def grade_adversarial(state: Dict[str, Any], *args, **kwargs) -> float:
-    return compute_final_grade(state, "adversarial")
+    return compute_final_grade(state, "adversarial", *args, **kwargs)
+
 
 def grade_chaotic(state: Dict[str, Any], *args, **kwargs) -> float:
-    return compute_final_grade(state, "chaotic")
+    return compute_final_grade(state, "chaotic", *args, **kwargs)
 
 if __name__ == "__main__":
     # Test the grader functions locally
@@ -126,4 +123,4 @@ if __name__ == "__main__":
     print(f"Hard      : {grade_hard(dummy_state)}")
     print(f"Adversarial: {grade_adversarial(dummy_state)}")
     print(f"Chaotic   : {grade_chaotic(dummy_state)}")
-    print(f"\nIndividual task reports saved to {os.path.dirname(os.path.abspath(__file__))}")
+    print("\nResult saved to grader_report.txt")
