@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"shares_available": 1000000, "voting_power": 0.45},
     "max_steps": 20,
-    "grader": "evaluation.grader:grade_adversarial",
+    "grader": "tasks.graders:grade_adversarial",
 }

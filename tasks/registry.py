@@ -11,4 +11,6 @@ TASKS: Dict[str, Dict[str, Any]] = {
     "easy": EASY,
     "medium": MEDIUM,
     "hard": HARD,
+    "adversarial": ADVERSARIAL,
+    "chaotic": CHAOTIC,
 }

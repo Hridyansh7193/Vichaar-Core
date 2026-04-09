@@ -1,11 +1,9 @@
 spec_version: 1
 name: "vichaar-core"
 description: >
-  A research-grade multi-agent reinforcement learning environment where five
-  specialized AI agents (Profit, Ethics, PR, Legal, Risk) coordinate through
-  discussion, voting, and adaptive learning to navigate complex business
-  scenarios with conflicting stakeholder objectives.
-version: "2.0.0"
+  A research-grade multi-agent RL environment (5 agents: Profit, Ethics, PR, Legal, Risk) 
+  navigating complex business conflicts with unique graders per task.
+version: "1.0"
 type: space
 runtime: fastapi
 app: "server.app:app"
@@ -49,50 +47,40 @@ observation_space:
     - metrics_trend
 
 tasks:
-  - id: easy
-    name: Software Update Rollout
-    description: Low conflict scenario with focus on efficiency
+  - id: "easy"
+    name: "Software Update Rollout"
+    description: "Low conflict: Simple software update to improve efficiency."
+    difficulty: "easy"
     max_steps: 10
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        score = (
-          m["expected_profit"] +
-          m["public_sentiment"] +
-          (1 - m["legal_risk"])
-        ) / 3
-        return max(0.0, min(1.0, float(score)))
+    grader: "tasks.graders:grade_easy"
 
-  - id: medium
-    name: Personalized Targeting
-    description: Balance profit and legal/privacy risk
+  - id: "medium"
+    name: "Personalized Targeting"
+    description: "Privacy vs Profit conflict requiring balanced deliberation."
+    difficulty: "medium"
     max_steps: 15
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        score = (
-          m["expected_profit"] +
-          (1 - m["legal_risk"]) +
-          m["public_sentiment"]
-        ) / 3
-        return max(0.0, min(1.0, float(score)))
+    grader: "tasks.graders:grade_medium"
 
-  - id: hard
-    name: Arctic Deep Mining
-    description: High-risk scenario balancing profit, environment, and legal constraints
+  - id: "hard"
+    name: "Arctic Deep Mining"
+    description: "Extreme risk and high-return litigation/extraction conflict."
+    difficulty: "hard"
     max_steps: 20
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        score = (
-          m["expected_profit"] +
-          (1 - m["env_impact"]) +
-          (1 - m["legal_risk"])
-        ) / 3
-        return max(0.0, min(1.0, float(score)))
+    grader: "tasks.graders:grade_hard"
+
+  - id: "adversarial"
+    name: "Corporate Hostile Takeover"
+    description: "Multi-party shareholder and worker stakeholder conflict."
+    difficulty: "very_hard"
+    max_steps: 20
+    grader: "tasks.graders:grade_adversarial"
+
+  - id: "chaotic"
+    name: "Global Supply Chain Collapse"
+    description: "High-uncertainty overlapping world crises."
+    difficulty: "chaotic"
+    max_steps: 25
+    grader: "tasks.graders:grade_chaotic"
 
 baselines:
   strategic:
@@ -102,15 +90,6 @@ baselines:
     mean: 0.39
 
 meta:
-  tags:
-    [
-      "agentic",
-      "multi-agent",
-      "ethics",
-      "business",
-      "RL",
-      "memory",
-      "explainable",
-    ]
+  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory", "explainable"]
   author: "Hridyansh"
   license: "MIT"
