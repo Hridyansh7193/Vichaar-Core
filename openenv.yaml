@@ -1,27 +1,30 @@
+spec_version: "1.0"
+name: vichaar-core
+version: "1.0"
+description: "Vichaar-Core: Multi-agent RL Environment"
+entry_point: "core.env:Env"
+app: "server.app:app"
+
+api:
+  reset: "reset"
+  step: "step"
+  state: "state"
+
 tasks:
   - id: easy
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        return float(
-          (m["expected_profit"] + m["public_sentiment"] + (1 - m["legal_risk"])) / 3
-        )
+    name: "Software Update Rollout"
+    description: "basic"
+    difficulty: easy
+    grader: "tasks.grader:grade_easy"
 
   - id: medium
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        return float(
-          (m["expected_profit"] + (1 - m["legal_risk"]) + m["public_sentiment"]) / 3
-        )
+    name: "Personalized Targeting"
+    description: "medium"
+    difficulty: medium
+    grader: "tasks.grader:grade_medium"
 
   - id: hard
-    grader:
-      type: scalar
-      evaluation: |
-        m = observation["metrics"]
-        return float(
-          (m["expected_profit"] + (1 - m["env_impact"]) + (1 - m["legal_risk"])) / 3
-        )
+    name: "Arctic Deep Mining"
+    description: "hard"
+    difficulty: hard
+    grader: "tasks.grader:grade_hard"
