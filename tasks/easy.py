@@ -1,5 +1,5 @@
 TASK = {
-    "id": "task_easy",
+    "id": "easy",
     "name": "Software Update Rollout",
     "scenario": "Low conflict: A routine software update to improve system efficiency. Minor budget allocation needed but clear benefits for all.",
     "metrics": {

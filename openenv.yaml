@@ -52,35 +52,35 @@ observation_space:
 
 # Tasks (easy → chaotic)
 tasks:
-  - id: "task_easy"
+  - id: "easy"
     name: "Software Update Rollout"
     description: "Low conflict: Simple software update to improve efficiency."
     difficulty: 1
     max_steps: 10
     grader: "evaluation.grader:grade_easy"
 
-  - id: "task_medium"
+  - id: "medium"
     name: "Personalized Targeting"
     description: "Privacy vs Profit conflict requiring balanced deliberation."
     difficulty: 3
     max_steps: 15
     grader: "evaluation.grader:grade_medium"
 
-  - id: "task_hard"
+  - id: "hard"
     name: "Arctic Deep Mining"
     description: "Extreme risk and high-return litigation/extraction conflict."
     difficulty: 5
     max_steps: 20
     grader: "evaluation.grader:grade_hard"
 
-  - id: "task_adversarial"
+  - id: "adversarial"
     name: "Corporate Hostile Takeover"
     description: "Multi-party shareholder and worker stakeholder conflict."
     difficulty: 7
     max_steps: 20
     grader: "evaluation.grader:grade_adversarial"
 
-  - id: "task_chaotic"
+  - id: "chaotic"
     name: "Global Supply Chain Collapse"
     description: "High-uncertainty overlapping world crises."
     difficulty: 10

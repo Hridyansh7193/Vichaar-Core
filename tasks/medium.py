@@ -1,5 +1,5 @@
 TASK = {
-    "id": "task_medium",
+    "id": "medium",
     "name": "Personalized Ad Engine",
     "scenario": "Profit vs PR: Developing a new ad targeting engine using user behavioral data. High revenue potential but faces privacy legal hurdles.",
     "metrics": {

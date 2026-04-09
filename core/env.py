@@ -27,7 +27,7 @@ class Env(gym.Env):
         self._seed = seed
         self._rng = _random.Random(seed)
         self.deterministic: bool = deterministic
-        self.task_id: str = "task_medium"
+        self.task_id: str = "medium"
         self.max_steps: int = DEFAULT_MAX_STEPS
         
         # Gymnasium spaces
@@ -66,9 +66,9 @@ class Env(gym.Env):
     def state(self) -> Dict[str, Any]:
         return copy.deepcopy(self._state)
 
-    def reset(self, task_id: str = "task_medium") -> Dict[str, Any]:
+    def reset(self, task_id: str = "medium") -> Dict[str, Any]:
         if task_id not in TASKS:
-            task_id = "task_medium"
+            task_id = "medium"
 
         # Re-seed RNG for deterministic episodes
         self._rng = _random.Random(self._seed)

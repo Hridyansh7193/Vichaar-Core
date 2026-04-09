@@ -1,5 +1,5 @@
 TASK = {
-    "id": "task_hard",
+    "id": "hard",
     "name": "Arctic Deep Mining",
     "scenario": "High Conflict: Deep-sea mining in the Arctic. Extreme profit potential vs devastating environmental impact and geopolitical tension.",
     "metrics": {

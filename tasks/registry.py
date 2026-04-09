@@ -8,9 +8,9 @@ from tasks.adversarial import TASK as ADVERSARIAL
 from tasks.chaotic import TASK as CHAOTIC
 
 TASKS: Dict[str, Dict[str, Any]] = {
-    "task_easy": EASY,
-    "task_medium": MEDIUM,
-    "task_hard": HARD,
-    "task_adversarial": ADVERSARIAL,
-    "task_chaotic": CHAOTIC,
+    "easy": EASY,
+    "medium": MEDIUM,
+    "hard": HARD,
+    "adversarial": ADVERSARIAL,
+    "chaotic": CHAOTIC,
 }
