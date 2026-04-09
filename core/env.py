@@ -67,32 +67,33 @@ class Env(gym.Env):
         return copy.deepcopy(self._state)
 
     def reset(self, task_id: str = "easy") -> Dict[str, Any]:
-        if task_id not in TASKS:
-            task_id = "easy"
-
-        # Re-seed RNG for deterministic episodes
-        self._rng = _random.Random(self._seed)
-
-        self.task_id = task_id
-        task = TASKS[task_id]
-        self.max_steps = task.get("max_steps", 15)
-
-        self._state = {
-            "scenario": task.get("scenario", "Default scenario"),
-            "phase": "morning",
-            "metrics": task.get("metrics", {}).copy(),
-            "entities": task.get("entities", {}).copy(),
-            "events": [],
-            "history": [],
-            "step_count": 0,
-            "agent_messages": [],
-            "metrics_trend": [],
-        }
-        for key in ("expected_profit", "legal_risk", "env_impact", "public_sentiment", "cost"):
-            self._state["metrics"].setdefault(
-                key, 0.5 if key in ("expected_profit", "public_sentiment") else 0.0
-            )
+        if task_id == "easy":
+            self._load_easy()
+        elif task_id == "medium":
+            self._load_medium()
+        elif task_id == "hard":
+            self._load_hard()
+        else:
+            self._load_easy()
         return self.state()
+
+    def _load_easy(self):
+        self.task_id = "easy"
+        self.max_steps = 10
+        self._state["metrics"] = {"expected_profit": 0.5, "public_sentiment": 0.6, "legal_risk": 0.1, "env_impact": 0.05}
+        self._state["step_count"] = 0
+
+    def _load_medium(self):
+        self.task_id = "medium"
+        self.max_steps = 15
+        self._state["metrics"] = {"expected_profit": 0.4, "public_sentiment": 0.4, "legal_risk": 0.3, "env_impact": 0.1}
+        self._state["step_count"] = 0
+
+    def _load_hard(self):
+        self.task_id = "hard"
+        self.max_steps = 20
+        self._state["metrics"] = {"expected_profit": 0.3, "public_sentiment": 0.2, "legal_risk": 0.5, "env_impact": 0.6}
+        self._state["step_count"] = 0
 
     @staticmethod
     def _clamp(val: float) -> float:
