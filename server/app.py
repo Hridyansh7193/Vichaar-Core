@@ -28,9 +28,10 @@ def root():
 # RESET
 # -------------------------------
 @app.post("/reset")
-def reset():
-    state = env.reset()
-    return {"observation": state}
+def reset(payload: Dict[str, Any] = Body(default={})):
+    task_id = payload.get("task_id", "easy")
+    obs = env.reset(task_id=task_id)
+    return {"observation": obs}
 
 
 # -------------------------------

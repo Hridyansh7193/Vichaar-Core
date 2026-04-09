@@ -66,16 +66,16 @@ class Env(gym.Env):
     def state(self) -> Dict[str, Any]:
         return copy.deepcopy(self._state)
 
-    def reset(self, task_id: str = "medium") -> Dict[str, Any]:
+    def reset(self, task_id: str = "easy") -> Dict[str, Any]:
         if task_id not in TASKS:
-            task_id = "medium"
+            task_id = "easy"
 
         # Re-seed RNG for deterministic episodes
         self._rng = _random.Random(self._seed)
 
         self.task_id = task_id
         task = TASKS[task_id]
-        self.max_steps = task.get("max_steps", DEFAULT_MAX_STEPS)
+        self.max_steps = task.get("max_steps", 15)
 
         self._state = {
             "scenario": task.get("scenario", "Default scenario"),

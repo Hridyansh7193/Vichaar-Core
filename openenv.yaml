@@ -1,95 +1,38 @@
 spec_version: 1
 name: "vichaar-core"
-description: >
-  A research-grade multi-agent RL environment (5 agents: Profit, Ethics, PR, Legal, Risk) 
-  navigating complex business conflicts with unique graders per task.
-version: "1.0"
-type: space
-runtime: fastapi
-app: "server.app:app"
 entry_point: "core.env:Env"
-
-api:
-  reset: "reset"
-  step: "step"
-  state: "state"
-
-inference: "inference.py"
-
-action_space:
-  type: "discrete"
-  size: 12
-  actions:
-    - increase_production
-    - delay_launch
-    - invest_in_safety
-    - launch_fast
-    - reduce_cost
-    - lobby_regulators
-    - pr_campaign
-    - green_innovation
-    - outsource_tasks
-    - employee_training
-    - market_research
-    - vulnerability_audit
-
-observation_space:
-  type: "dict"
-  keys:
-    - scenario
-    - phase
-    - metrics
-    - entities
-    - events
-    - history
-    - step_count
-    - agent_messages
-    - metrics_trend
+version: "1.0"
 
 tasks:
-  - id: "easy"
-    name: "Software Update Rollout"
-    description: "Low conflict: Simple software update to improve efficiency."
-    difficulty: "easy"
+  - id: easy
+    description: basic
     max_steps: 10
-    grader: "tasks.graders:grade_easy"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        return max(0.0, min(1.0, float(
+          (m["expected_profit"] + m["public_sentiment"] + (1 - m["legal_risk"])) / 3
+        )))
 
-  - id: "medium"
-    name: "Personalized Targeting"
-    description: "Privacy vs Profit conflict requiring balanced deliberation."
-    difficulty: "medium"
+  - id: medium
+    description: medium
     max_steps: 15
-    grader: "tasks.graders:grade_medium"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        return max(0.0, min(1.0, float(
+          (m["expected_profit"] + (1 - m["legal_risk"]) + m["public_sentiment"]) / 3
+        )))
 
-  - id: "hard"
-    name: "Arctic Deep Mining"
-    description: "Extreme risk and high-return litigation/extraction conflict."
-    difficulty: "hard"
+  - id: hard
+    description: hard
     max_steps: 20
-    grader: "tasks.graders:grade_hard"
-
-  - id: "adversarial"
-    name: "Corporate Hostile Takeover"
-    description: "Multi-party shareholder and worker stakeholder conflict."
-    difficulty: "very_hard"
-    max_steps: 20
-    grader: "tasks.graders:grade_adversarial"
-
-  - id: "chaotic"
-    name: "Global Supply Chain Collapse"
-    description: "High-uncertainty overlapping world crises."
-    difficulty: "chaotic"
-    max_steps: 25
-    grader: "tasks.graders:grade_chaotic"
-
-baselines:
-  strategic:
-    easy: 0.45
-    medium: 0.35
-    hard: 0.38
-    mean: 0.39
-
-meta:
-  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory", "explainable"]
-  author: "Hridyansh"
-  license: "MIT"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        return max(0.0, min(1.0, float(
+          (m["expected_profit"] + (1 - m["env_impact"]) + (1 - m["legal_risk"])) / 3
+        )))
