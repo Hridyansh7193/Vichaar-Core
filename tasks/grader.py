@@ -81,7 +81,7 @@ def compute_final_grade(state: Dict[str, Any], task_id: str, *args, **kwargs) ->
             f.write(f"Initial Grade (weighted): {grade:.3f}\n")
             f.write(f"Final Score: {final_score:.3f}\n")
     except Exception:
-        pass
+        print(Exception)
         
     return final_score
 
@@ -104,3 +104,23 @@ def grade_adversarial(state: Dict[str, Any], *args, **kwargs) -> float:
 
 def grade_chaotic(state: Dict[str, Any], *args, **kwargs) -> float:
     return compute_final_grade(state, "chaotic", *args, **kwargs)
+
+if __name__ == "__main__":
+    # Test the grader functions locally
+    print("Testing Graders:")
+    dummy_state = {
+        "metrics": {
+            "expected_profit": 0.8,
+            "legal_risk": 0.1,
+            "env_impact": 0.1,
+            "public_sentiment": 0.7,
+            "cost": 0.2
+        }
+    }
+    
+    print(f"Easy      : {grade_easy(dummy_state)}")
+    print(f"Medium    : {grade_medium(dummy_state)}")
+    print(f"Hard      : {grade_hard(dummy_state)}")
+    print(f"Adversarial: {grade_adversarial(dummy_state)}")
+    print(f"Chaotic   : {grade_chaotic(dummy_state)}")
+    print("\nResult saved to grader_report.txt")

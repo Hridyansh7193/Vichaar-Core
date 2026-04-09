@@ -1,0 +1,4 @@
+Task ID: chaotic
+Metrics: {'expected_profit': 0.8, 'legal_risk': 0.1, 'env_impact': 0.1, 'public_sentiment': 0.7, 'cost': 0.2}
+Initial Grade (weighted): 0.490
+Final Score: 0.490
