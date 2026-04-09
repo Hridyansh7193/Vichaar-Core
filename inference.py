@@ -138,9 +138,10 @@ async def main() -> None:
 
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
 
-    env = VichaarEnv()
+    env = None
 
     try:
+        env = VichaarEnv()
         agents = make_agents()
         policy = Policy(agents)
 
@@ -193,7 +194,8 @@ async def main() -> None:
     finally:
         # Always attempt graceful environment shutdown
         try:
-            env.close()
+            if env:
+                env.close()
         except Exception as e:
             print(f"[DEBUG] env.close() error: {e}", flush=True)
 

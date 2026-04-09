@@ -15,28 +15,28 @@ tasks:
     name: "Software Update Rollout"
     description: "easy"
     difficulty: easy
-    grader: "tasks.grader:grade_easy"
+    grader: "grader:grade_easy"
 
   - id: medium
     name: "Personalized Targeting"
     description: "medium"
     difficulty: medium
-    grader: "tasks.grader:grade_medium"
+    grader: "grader:grade_medium"
 
   - id: hard
     name: "Arctic Deep Mining"
     description: "hard"
     difficulty: hard
-    grader: "tasks.grader:grade_hard"
+    grader: "grader:grade_hard"
 
   - id: adversarial
     name: "Hostile Takeover"
     description: "adversarial"
     difficulty: hard
-    grader: "tasks.grader:grade_adversarial"
+    grader: "grader:grade_adversarial"
 
   - id: chaotic
     name: "Global Supply Chain Collapse"
     description: "chaotic"
     difficulty: extreme
-    grader: "tasks.grader:grade_chaotic"
+    grader: "grader:grade_chaotic"

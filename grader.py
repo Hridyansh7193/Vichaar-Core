@@ -5,6 +5,8 @@ navigated the scenario. Task-specific bonuses reward genuinely
 difficult achievements (e.g., keeping env_impact low on Arctic Mining).
 """
 import os
+import sys
+
 from typing import Dict, Any
 from configs.env_config import GRADE_WEIGHTS
 
@@ -80,8 +82,8 @@ def compute_final_grade(state: Dict[str, Any], task_id: str, *args, **kwargs) ->
             f.write(f"Metrics: {m}\n")
             f.write(f"Initial Grade (weighted): {grade:.3f}\n")
             f.write(f"Final Score: {final_score:.3f}\n")
-    except Exception:
-        print(Exception)
+    except Exception as e:
+        print(f"[Grader Warning] Could not write report: {e}", file=sys.stderr)
         
     return final_score
 
