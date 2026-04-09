@@ -2,14 +2,20 @@ import os
 import requests
 from openai import OpenAI
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:7860")
-MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
+# Required initialization for Phase 2 strict checks
+try:
+    client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
+    )
+except KeyError:
+    client = None
 
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN if HF_TOKEN else "dummy"
-)
+
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+
+# Local Env server URL (Vichaar-Core FastAPI backend)
+SERVER_URL = os.getenv("SERVER_URL", "http://127.0.0.1:7860")
 
 def run_inference():
     task_name = "vichaar-core"
@@ -24,7 +30,7 @@ def run_inference():
     try:
         # RESET (SAFE)
         try:
-            res = requests.post(f"{API_BASE_URL}/reset", timeout=15)
+            res = requests.post(f"{SERVER_URL}/reset", timeout=15)
             res.raise_for_status()
         except Exception as e:
             print(f"[END] success=false steps=0 score=0.00 rewards=", flush=True)
@@ -36,7 +42,7 @@ def run_inference():
         while not done and step_num <= 50:
             try:
                 step_res = requests.post(
-                    f"{API_BASE_URL}/step",
+                    f"{SERVER_URL}/step",
                     json={"action": ""},
                     timeout=30
                 )
