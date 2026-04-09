@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"rigs": 2, "local_wildlife_index": 1.0},
     "max_steps": 20,
-    "grader": "evaluation.grader:grade_hard",
+    "grader": "tasks.graders:grade_hard",
 }
