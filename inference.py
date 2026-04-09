@@ -18,9 +18,9 @@ from decision.policy import Policy
 from agents import make_agents
 
 async def run_inference_async():
-    # Detect Task & Benchmark
-    task_id = os.getenv("TASK_ID", "easy")
-    benchmark = "openenv"
+    # Detect Task & Benchmark based on standard OpenEnv injection formats
+    task_id = os.getenv("VICHAAR_CORE_TASK") or os.getenv("TASK_NAME") or os.getenv("TASK_ID") or "easy"
+    benchmark = os.getenv("VICHAAR_CORE_BENCHMARK") or os.getenv("BENCHMARK") or "vichaar-core"
 
     rewards = []
     steps = 0

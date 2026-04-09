@@ -11,5 +11,5 @@ TASK = {
     },
     "entities": {"suppliers": 20, "warehouses": 5},
     "max_steps": 25,
-    "grader": "tasks.graders:grade_chaotic",
+    "grader": "tasks.grader:grade_chaotic",
 }
