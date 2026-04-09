@@ -1,5 +1,5 @@
 import os
-import requests
+import asyncio
 from openai import OpenAI
 
 # Required initialization for Phase 2 strict checks
@@ -8,16 +8,16 @@ try:
         base_url=os.environ["API_BASE_URL"],
         api_key=os.environ["API_KEY"]
     )
-except KeyError:
+except Exception:
     client = None
 
+from core.env import Env as VichaarEnv
+from decision.policy import Policy
+from agents import make_agents
 
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
 
-# Local Env server URL (Vichaar-Core FastAPI backend)
-SERVER_URL = os.getenv("SERVER_URL", "http://127.0.0.1:7860")
-
-def run_inference():
+async def run_inference_async():
     task_name = "vichaar-core"
     benchmark = "openenv"
 
@@ -28,43 +28,40 @@ def run_inference():
     print(f"[START] task={task_name} env={benchmark} model={MODEL_NAME}", flush=True)
 
     try:
-        # RESET (SAFE)
-        try:
-            res = requests.post(f"{SERVER_URL}/reset", timeout=15)
-            res.raise_for_status()
-        except Exception as e:
-            print(f"[END] success=false steps=0 score=0.00 rewards=", flush=True)
-            return
+        # Initialize internal Vichaar-Core natively
+        env = VichaarEnv()
+        agents = make_agents()
+        policy = Policy(agents)
+        
+        state = env.reset()
 
         done = False
         step_num = 1
 
         while not done and step_num <= 50:
             try:
-                step_res = requests.post(
-                    f"{SERVER_URL}/step",
-                    json={"action": ""},
-                    timeout=30
-                )
-                step_res.raise_for_status()
-                data = step_res.json()
+                # Agent policy decides action (this automatically makes API proxy requests internally via agents/base.py)
+                act_str, board, votes = await policy.run_step(state)
+                
+                if not act_str:
+                    act_str = "invest_in_safety"
 
-                reward = float(data.get("reward", 0.0))
-                done = bool(data.get("done", False))
-                action = data.get("info", {}).get("action", "invest_in_safety")
+                obs, reward, done, info = env.step(act_str, messages=board, agent_votes=votes)
+                
+                state = env.state()
                 error = "null"
 
             except Exception as e:
                 reward = 0.0
                 done = True
-                action = "error"
-                error = "request_failed"
+                act_str = "error"
+                error = str(e).replace(' ', '_')
 
             rewards.append(reward)
             steps = step_num
 
             print(
-                f"[STEP] step={step_num} action={action} reward={reward:.2f} done={str(done).lower()} error={error}",
+                f"[STEP] step={step_num} action={act_str} reward={reward:.2f} done={str(done).lower()} error={error}",
                 flush=True
             )
 
@@ -82,7 +79,7 @@ def run_inference():
         score = max(0.0, min(1.0, score))
         success = score > 0.1
 
-    except Exception:
+    except Exception as e:
         score = 0.0
         success = False
 
@@ -92,6 +89,9 @@ def run_inference():
         f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True
     )
+
+def run_inference():
+    asyncio.run(run_inference_async())
 
 if __name__ == "__main__":
     run_inference()
