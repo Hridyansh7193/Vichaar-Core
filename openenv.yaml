@@ -28,3 +28,15 @@ tasks:
     description: "hard"
     difficulty: hard
     grader: "tasks.grader:grade_hard"
+
+  - id: adversarial
+    name: "Hostile Takeover"
+    description: "adversarial"
+    difficulty: hard
+    grader: "tasks.grader:grade_adversarial"
+
+  - id: chaotic
+    name: "Global Supply Chain Collapse"
+    description: "chaotic"
+    difficulty: extreme
+    grader: "tasks.grader:grade_chaotic"
