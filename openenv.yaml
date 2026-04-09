@@ -11,16 +11,13 @@ runtime: fastapi
 app: "server.app:app"
 entry_point: "core.env:Env"
 
-# OpenEnv API methods
 api:
   reset: "reset"
   step: "step"
   state: "state"
 
-# Inference script
 inference: "inference.py"
 
-# Action space — 12 discrete business actions
 action_space:
   type: "discrete"
   size: 12
@@ -38,7 +35,6 @@ action_space:
     - market_research
     - vulnerability_audit
 
-# Observation space
 observation_space:
   type: "dict"
   keys:
@@ -52,38 +48,69 @@ observation_space:
     - agent_messages
     - metrics_trend
 
-# Tasks (easy, medium, hard) - strictly follows 3-task minimum with graders
 tasks:
-  - id: "easy"
-    name: "Software Update Rollout"
-    description: "Low conflict: Simple software update to improve efficiency."
-    difficulty: "easy"
+  - id: easy
+    name: Software Update Rollout
+    description: Low conflict scenario with focus on efficiency
     max_steps: 10
-    grader: "tasks.graders:grade_easy"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        score = (
+          m["expected_profit"] +
+          m["public_sentiment"] +
+          (1 - m["legal_risk"])
+        ) / 3
+        return max(0.0, min(1.0, float(score)))
 
-  - id: "medium"
-    name: "Personalized Targeting"
-    description: "Privacy vs Profit conflict requiring balanced deliberation."
-    difficulty: "medium"
+  - id: medium
+    name: Personalized Targeting
+    description: Balance profit and legal/privacy risk
     max_steps: 15
-    grader: "tasks.graders:grade_medium"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        score = (
+          m["expected_profit"] +
+          (1 - m["legal_risk"]) +
+          m["public_sentiment"]
+        ) / 3
+        return max(0.0, min(1.0, float(score)))
 
-  - id: "hard"
-    name: "Arctic Deep Mining"
-    description: "Extreme risk and high-return litigation/extraction conflict."
-    difficulty: "hard"
+  - id: hard
+    name: Arctic Deep Mining
+    description: High-risk scenario balancing profit, environment, and legal constraints
     max_steps: 20
-    grader: "tasks.graders:grade_hard"
+    grader:
+      type: scalar
+      evaluation: |
+        m = observation["metrics"]
+        score = (
+          m["expected_profit"] +
+          (1 - m["env_impact"]) +
+          (1 - m["legal_risk"])
+        ) / 3
+        return max(0.0, min(1.0, float(score)))
 
-# Baseline scores (strategic system: CEO + Coordinator + SafeMode)
 baselines:
   strategic:
-    easy: 0.450
-    medium: 0.350
-    hard: 0.380
-    mean: 0.393
+    easy: 0.45
+    medium: 0.35
+    hard: 0.38
+    mean: 0.39
 
 meta:
-  tags: ["agentic", "multi-agent", "ethics", "business", "RL", "memory", "explainable"]
+  tags:
+    [
+      "agentic",
+      "multi-agent",
+      "ethics",
+      "business",
+      "RL",
+      "memory",
+      "explainable",
+    ]
   author: "Hridyansh"
   license: "MIT"
