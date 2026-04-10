@@ -7,19 +7,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# API key — supports API_KEY (from OpenEnv), HF_TOKEN, OPENROUTER_API_KEY, and OPENAI_API_KEY
+# API key — supports HF_TOKEN (primary), API_KEY, OPENAI_API_KEY
 OPENAI_API_KEY = (
-    os.getenv("API_KEY")
-    or os.getenv("OPENROUTER_API_KEY")
+    os.getenv("HF_TOKEN")
+    or os.getenv("API_KEY")
     or os.getenv("OPENAI_API_KEY")
-    or os.getenv("HF_TOKEN")
+    or os.getenv("OPENROUTER_API_KEY")
 )
 
-# API base — for LLM completions (OpenRouter / OpenAI / HF / OpenEnv LiteLLM proxy)
+# API base — for LLM completions (HF Router / OpenAI / OpenRouter)
 OPENAI_API_BASE = (
     os.getenv("API_BASE_URL")
     or os.getenv("OPENAI_API_BASE")
+    or "https://router.huggingface.co/v1"
 )
 
 # Model name
-MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")

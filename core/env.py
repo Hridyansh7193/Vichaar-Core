@@ -1,12 +1,12 @@
 """
 Vichaar-Core Environment -- Research-Grade Multi-Agent RL
 
-OpenEnv API:  reset(task_id), step(action), state()
+OpenEnv API:  reset(task_id), step(action), state(), close()
 """
 
 import copy
 import random as _random
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 from collections import Counter
 import gymnasium as gym
 from gymnasium import spaces
@@ -27,12 +27,11 @@ class Env(gym.Env):
         self._seed = seed
         self._rng = _random.Random(seed)
         self.deterministic: bool = deterministic
-        self.task_id: str = "medium"
+        self.task_id: str = "easy"
         self.max_steps: int = DEFAULT_MAX_STEPS
-        
+
         # Gymnasium spaces
         self.action_space = spaces.Discrete(len(ACTIONS))
-        # Continuous metrics from 0.0 to 1.0
         self.observation_space = spaces.Dict({
             "expected_profit": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
             "legal_risk": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=float),
@@ -42,6 +41,7 @@ class Env(gym.Env):
         })
 
         self._state: Dict[str, Any] = self._empty_state()
+        self._closed: bool = False
 
     @staticmethod
     def _empty_state() -> Dict[str, Any]:
@@ -66,34 +66,21 @@ class Env(gym.Env):
     def state(self) -> Dict[str, Any]:
         return copy.deepcopy(self._state)
 
-    def reset(self, task_id: str = "easy") -> Dict[str, Any]:
-        if task_id == "easy":
-            self._load_easy()
-        elif task_id == "medium":
-            self._load_medium()
-        elif task_id == "hard":
-            self._load_hard()
-        else:
-            self._load_easy()
+    def reset(self, task_id: str = "easy", **kwargs) -> Dict[str, Any]:
+        self._closed = False
+
+        # Look up task in registry, fall back to easy
+        task_def = TASKS.get(task_id, TASKS.get("easy"))
+        self.task_id = task_def["id"]
+        self.max_steps = task_def.get("max_steps", DEFAULT_MAX_STEPS)
+
+        # Reset state from task definition
+        self._state = self._empty_state()
+        self._state["scenario"] = task_def.get("scenario", "Uninitialized")
+        self._state["metrics"] = copy.deepcopy(task_def.get("metrics", self._state["metrics"]))
+        self._state["entities"] = copy.deepcopy(task_def.get("entities", {}))
+
         return self.state()
-
-    def _load_easy(self):
-        self.task_id = "easy"
-        self.max_steps = 10
-        self._state["metrics"] = {"expected_profit": 0.5, "public_sentiment": 0.6, "legal_risk": 0.1, "env_impact": 0.05}
-        self._state["step_count"] = 0
-
-    def _load_medium(self):
-        self.task_id = "medium"
-        self.max_steps = 15
-        self._state["metrics"] = {"expected_profit": 0.4, "public_sentiment": 0.4, "legal_risk": 0.3, "env_impact": 0.1}
-        self._state["step_count"] = 0
-
-    def _load_hard(self):
-        self.task_id = "hard"
-        self.max_steps = 20
-        self._state["metrics"] = {"expected_profit": 0.3, "public_sentiment": 0.2, "legal_risk": 0.5, "env_impact": 0.6}
-        self._state["step_count"] = 0
 
     @staticmethod
     def _clamp(val: float) -> float:
@@ -121,9 +108,9 @@ class Env(gym.Env):
     def step(
         self,
         action: str,
-        messages: List[str] | None = None,
-        agent_votes: Dict[str, str] | None = None,
-    ) -> Tuple[Dict[str, Any], Dict[str, float], bool, Dict[str, Any]]:
+        messages: Optional[List[str]] = None,
+        agent_votes: Optional[Dict[str, str]] = None,
+    ) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
         if messages is None:
             messages = []
         if agent_votes is None:
@@ -181,7 +168,7 @@ class Env(gym.Env):
         if collaborated:
             global_reward += 0.1
 
-        if getattr(self, "current_task", "") == "chaotic":
+        if self.task_id == "chaotic":
             global_reward += 0.05
 
         # Final Clamp
@@ -196,10 +183,15 @@ class Env(gym.Env):
         ):
             done = True
             global_reward = 0.0
+
         info = {
             "events": events,
             "collaborated": collaborated,
             "agent_votes": agent_votes,
-            "rewards": multi_agent_rewards,  # preserved for inference loop
+            "rewards": multi_agent_rewards,
         }
         return self.state(), global_reward, done, info
+
+    def close(self):
+        """Graceful shutdown — required by OpenEnv spec."""
+        self._closed = True

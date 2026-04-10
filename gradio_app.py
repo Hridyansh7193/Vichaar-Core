@@ -539,17 +539,26 @@ def _error_md(msg):
 # Build UI
 # ─────────────────────────────────────────────
 
-with gr.Blocks(
-    css=CUSTOM_CSS,
-    title="Vichaar-Core — Decision Intelligence",
-    theme=gr.themes.Base(
-        primary_hue=gr.themes.colors.indigo,
-        secondary_hue=gr.themes.colors.slate,
-        neutral_hue=gr.themes.colors.gray,
-        font=gr.themes.GoogleFont("Inter"),
-        font_mono=gr.themes.GoogleFont("JetBrains Mono"),
-    ),
-) as demo:
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="gradio")
+
+try:
+    # Gradio 4.x
+    _blocks_kwargs = dict(
+        css=CUSTOM_CSS,
+        title="Vichaar-Core — Decision Intelligence",
+        theme=gr.themes.Base(
+            primary_hue=gr.themes.colors.indigo,
+            secondary_hue=gr.themes.colors.slate,
+            neutral_hue=gr.themes.colors.gray,
+            font=gr.themes.GoogleFont("Inter"),
+            font_mono=gr.themes.GoogleFont("JetBrains Mono"),
+        ),
+    )
+except Exception:
+    _blocks_kwargs = dict(title="Vichaar-Core — Decision Intelligence")
+
+with gr.Blocks(**_blocks_kwargs) as demo:
 
     # Header
     gr.HTML("""

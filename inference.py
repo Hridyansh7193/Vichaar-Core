@@ -42,13 +42,18 @@ STDOUT FORMAT
 
 import asyncio
 import os
+import sys
 from typing import List, Optional
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from openai import OpenAI
 
 from core.env import Env as VichaarEnv
 from decision.policy import Policy
 from agents import make_agents
+from configs.env_config import ACTIONS
 
 # ---------------------------------------------------------------------------
 # Environment & model configuration
@@ -57,7 +62,7 @@ API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME   = os.getenv("MODEL_NAME")   or "Qwen/Qwen2.5-72B-Instruct"
 
-# Task configuration — checked in priority order to match all validator env vars
+# Task configuration
 TASK_NAME = (
     os.getenv("VICHAAR_CORE_TASK")
     or os.getenv("TASK_NAME")
@@ -72,11 +77,11 @@ BENCHMARK = (
 
 # Episode parameters
 MAX_STEPS               = 50
-TEMPERATURE             = 0.7    # used internally by Policy/agents
-MAX_TOKENS              = 512    # used internally by Policy/agents
-SUCCESS_SCORE_THRESHOLD = 0.1    # minimum normalised score to count as success
+TEMPERATURE             = 0.7
+MAX_TOKENS              = 512
+SUCCESS_SCORE_THRESHOLD = 0.1
 
-# System prompt passed to the multi-agent policy context
+# System prompt
 SYSTEM_PROMPT = (
     "You are a multi-agent deliberation system navigating AI governance decisions. "
     "Each step you collectively choose one action that best balances safety, capability, "
@@ -85,7 +90,7 @@ SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Logging helpers  (match demo format exactly)
+# Logging helpers
 # ---------------------------------------------------------------------------
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -122,13 +127,12 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
-    # OpenAI client is available for Policy/agents to use via env vars;
-    # it is constructed here so the validator can confirm credentials are valid.
+    # Validate OpenAI client can be created (mandatory check)
+    client = None
     try:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)  # noqa: F841
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     except Exception as e:
         print(f"[DEBUG] OpenAI client init failed: {e}", flush=True)
-        client = None  # noqa: F841
 
     history:      List[str]   = []
     rewards:      List[float] = []
@@ -152,11 +156,13 @@ async def main() -> None:
             if done:
                 break
 
+            error = None
             try:
                 # Multi-agent deliberation → single action string
                 act_str, board, votes = await policy.run_step(state)
 
-                if not act_str:
+                # Fallback if policy returns invalid action
+                if not act_str or act_str not in ACTIONS:
                     act_str = "invest_in_safety"
 
                 obs, reward, done_flag, info = env.step(
@@ -166,7 +172,6 @@ async def main() -> None:
                 )
                 state = env.state()
                 done  = done_flag
-                error = None
 
             except Exception as e:
                 reward  = 0.0
