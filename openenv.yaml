@@ -25,3 +25,13 @@ tasks:
     name: hard
     max_steps: 20
     grader: tasks.graders:grade_hard
+
+  - id: adversarial
+    name: adversarial
+    max_steps: 25
+    grader: tasks.graders:grade_adversarial
+
+  - id: chaotic
+    name: chaotic
+    max_steps: 30
+    grader: tasks.graders:grade_chaotic
