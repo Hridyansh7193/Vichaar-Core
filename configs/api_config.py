@@ -9,9 +9,9 @@ load_dotenv()
 
 # API key — supports HF_TOKEN (primary), API_KEY, OPENAI_API_KEY
 OPENAI_API_KEY = (
-    os.getenv("HF_TOKEN")
+    os.getenv("OPENAI_API_KEY")
+    or os.getenv("HF_TOKEN")
     or os.getenv("API_KEY")
-    or os.getenv("OPENAI_API_KEY")
     or os.getenv("OPENROUTER_API_KEY")
 )
 

@@ -58,7 +58,7 @@ from configs.env_config import ACTIONS
 # ---------------------------------------------------------------------------
 # Environment & model configuration
 # ---------------------------------------------------------------------------
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_KEY      = os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME   = os.getenv("MODEL_NAME")   or "Qwen/Qwen2.5-72B-Instruct"
 
@@ -208,4 +208,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass  # Clean exit — [END] line already emitted inside finally block
