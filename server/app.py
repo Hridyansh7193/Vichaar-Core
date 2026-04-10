@@ -174,10 +174,10 @@ async def step(action: Dict[str, Any] = Body(default={})):
     # Response (STRICT FORMAT)
     info["action"] = act_str
     return {
-        "observation": obs,
+        "observation": obs if isinstance(obs, dict) else {},
         "reward": float(reward),
         "done": bool(done),
-        "info": info,
+        "info": info if isinstance(info, dict) else {}
     }
 
 

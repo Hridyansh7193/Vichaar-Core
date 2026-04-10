@@ -1,214 +1,119 @@
-"""
-Inference Script — Vichaar-Core
-===================================
-MANDATORY
-- Before submitting, ensure the following variables are defined in your environment configuration:
-    API_BASE_URL        The API endpoint for the LLM.
-    MODEL_NAME          The model identifier to use for inference.
-    HF_TOKEN            Your Hugging Face / API key.
-
-- Defaults are set only for API_BASE_URL and MODEL_NAME
-    (and should reflect your active inference setup):
-    API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-    MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
-
-- The inference script must be named `inference.py` and placed in the root directory of the project
-- Participants must use OpenAI Client for all LLM calls using above variables
-
-STDOUT FORMAT
-- The script must emit exactly three line types to stdout, in this order:
-
-    [START] task=<task_name> env=<benchmark> model=<model_name>
-    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
-
-  Rules:
-    - One [START] line at episode begin.
-    - One [STEP] line per step, immediately after env.step() returns.
-    - One [END] line after env.close(), always emitted (even on exception).
-    - reward and rewards are formatted to 2 decimal places.
-    - done and success are lowercase booleans: true or false.
-    - error is the raw last_action_error string, or null if none.
-    - All fields on a single line with no newlines within a line.
-    - Each task should return score in [0, 1]
-
-  Example:
-    [START] task=easy env=vichaar-core model=Qwen/Qwen2.5-72B-Instruct
-    [STEP] step=1 action=invest_in_safety reward=0.20 done=false error=null
-    [STEP] step=2 action=expand_research reward=0.40 done=false error=null
-    [STEP] step=3 action=align_values reward=1.00 done=true error=null
-    [END] success=true steps=3 score=0.533 rewards=0.20,0.40,1.00
-"""
-
 import asyncio
 import os
 import sys
+import textwrap
 from typing import List, Optional
-
-from dotenv import load_dotenv
-load_dotenv()
 
 from openai import OpenAI
 
-from core.env import Env as VichaarEnv
-from decision.policy import Policy
-from agents import make_agents
-from configs.env_config import ACTIONS
+# Required Environment Variables
+API_BASE_URL = os.environ.get("API_BASE_URL")
+API_KEY = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN")
+MODEL_NAME = os.environ.get("MODEL_NAME")
+TASK_NAME = os.environ.get("TASK_ID", "easy")
 
-# ---------------------------------------------------------------------------
-# Environment & model configuration
-# ---------------------------------------------------------------------------
-API_KEY      = os.getenv("OPENAI_API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME   = os.getenv("MODEL_NAME")   or "Qwen/Qwen2.5-72B-Instruct"
-
-# Task configuration
-TASK_NAME = (
-    os.getenv("VICHAAR_CORE_TASK")
-    or os.getenv("TASK_NAME")
-    or os.getenv("TASK_ID")
-    or "easy"
-)
-BENCHMARK = (
-    os.getenv("VICHAAR_CORE_BENCHMARK")
-    or os.getenv("BENCHMARK")
-    or "vichaar-core"
-)
-
-# Episode parameters
-MAX_STEPS               = 50
-TEMPERATURE             = 0.7
-MAX_TOKENS              = 512
-SUCCESS_SCORE_THRESHOLD = 0.1
-
-# System prompt
-SYSTEM_PROMPT = (
-    "You are a multi-agent deliberation system navigating AI governance decisions. "
-    "Each step you collectively choose one action that best balances safety, capability, "
-    "and societal impact. Reason carefully and return a single action string."
-)
-
-
-# ---------------------------------------------------------------------------
-# Logging helpers
-# ---------------------------------------------------------------------------
+# Initialize OpenAI client
+try:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+except Exception as e:
+    print(f"[DEBUG] Client init failed: {e}")
+    client = None
 
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
-
-def log_step(
-    step: int,
-    action: str,
-    reward: float,
-    done: bool,
-    error: Optional[str],
-) -> None:
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    done_val  = str(done).lower()
-    print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} "
-        f"done={done_val} error={error_val}",
-        flush=True,
-    )
-
+    done_val = str(done).lower()
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(
-        f"[END] success={str(success).lower()} steps={steps} "
-        f"score={score:.3f} rewards={rewards_str}",
-        flush=True,
-    )
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
-
-# ---------------------------------------------------------------------------
-# Main episode loop
-# ---------------------------------------------------------------------------
-
-async def main() -> None:
-    # Validate OpenAI client can be created (mandatory check)
-    client = None
+async def get_llm_action(step: int, obs: dict) -> str:
+    """Calls LLM every step to choose action."""
+    if not client:
+        return "invest_in_safety"
+    
+    prompt = f"Step: {step}\nObservation: {obs}\nChoose one action from: invest_in_safety, green_innovation, reduce_cost, pr_campaign, market_research, launch_fast, delay_launch, vulnerability_audit, align_values, expand_research."
+    
     try:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a CEO. Reply with ONLY the action name string."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        action = response.choices[0].message.content.strip()
+        # Validation: ensure it's one of the valid actions
+        valid_actions = ["invest_in_safety", "green_innovation", "reduce_cost", "pr_campaign", "market_research", "launch_fast", "delay_launch", "vulnerability_audit", "align_values", "expand_research"]
+        for valid in valid_actions:
+            if valid in action.lower():
+                return valid
+        return "invest_in_safety"
     except Exception as e:
-        print(f"[DEBUG] OpenAI client init failed: {e}", flush=True)
+        return "invest_in_safety"
 
-    history:      List[str]   = []
-    rewards:      List[float] = []
-    steps_taken:  int         = 0
-    score:        float       = 0.0
-    success:      bool        = False
-
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
-
-    env = None
-
+async def main():
+    # Detect Benchmark
+    benchmark = "openenv"
+    
+    log_start(task=TASK_NAME, env=benchmark, model=MODEL_NAME)
+    
+    # We will use the VichaarEnv directly or hit the Space URL if running remotely
+    # But usually inference script hits the local import to be fast
+    from core.env import Env as VichaarEnv
+    env = VichaarEnv()
+    
+    history: List[dict] = []
+    rewards: List[float] = []
+    steps_taken = 0
+    success = False
+    
     try:
-        env = VichaarEnv()
-        agents = make_agents()
-        policy = Policy(agents)
-
-        state = env.reset(task_id=TASK_NAME)
-        done  = False
-
-        for step in range(1, MAX_STEPS + 1):
+        obs = env.reset(task_id=TASK_NAME)
+        done = False
+        
+        # Max steps depend on task, but we clamp for safety
+        max_steps_limit = 20
+        
+        for step_num in range(1, max_steps_limit + 1):
             if done:
                 break
-
-            error = None
-            try:
-                # Multi-agent deliberation → single action string
-                act_str, board, votes = await policy.run_step(state)
-
-                # Fallback if policy returns invalid action
-                if not act_str or act_str not in ACTIONS:
-                    act_str = "invest_in_safety"
-
-                obs, reward, done_flag, info = env.step(
-                    act_str,
-                    messages=board,
-                    agent_votes=votes,
-                )
-                state = env.state()
-                done  = done_flag
-
-            except Exception as e:
-                reward  = 0.0
-                done    = True
-                act_str = "error"
-                error   = str(e).replace(" ", "_")
-
-            rewards.append(reward)
-            steps_taken = step
-
-            log_step(step=step, action=act_str, reward=reward, done=done, error=error)
-
-            history.append(f"Step {step}: {act_str!r} -> reward {reward:+.2f}")
-
-        # Normalised score: mean reward clamped to [0, 1]
-        score   = sum(rewards) / len(rewards) if rewards else 0.0
-        score   = max(0.0, min(1.0, score))
-        success = score >= SUCCESS_SCORE_THRESHOLD
-
+                
+            action = await get_llm_action(step_num, obs)
+            
+            # Perform step
+            obs, reward, done, info = env.step(action)
+            
+            rewards.append(float(reward))
+            steps_taken = step_num
+            
+            log_step(step=step_num, action=action, reward=float(reward), done=done, error=None)
+            
+            # OpenEnv Graders often look at the trajectory (list of step info)
+            history.append({"reward": float(reward), "done": done})
+            
+            if done:
+                break
+        
+        # Calculate score using the local graders logic to match what the platform will do
+        if not rewards:
+            score = 0.0
+        else:
+            score = sum(rewards) / len(rewards)
+        
+        score = max(0.0, min(1.0, float(score)))
+        success = score > 0.1
+        
     except Exception as e:
-        score   = 0.0
-        success = False
-        print(f"[DEBUG] Execution error: {e}", flush=True)
-
+        print(f"[DEBUG] Execution error: {e}")
+        score = 0.0
     finally:
-        # Always attempt graceful environment shutdown
-        try:
-            if env:
-                env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error: {e}", flush=True)
-
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
-
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        pass  # Clean exit — [END] line already emitted inside finally block
+    asyncio.run(main())
