@@ -1,1 +1,1 @@
-# Init file for tasks package
+from tasks.registry import TASKS
