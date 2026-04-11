@@ -2,8 +2,11 @@ spec_version: "1.0"
 name: vichaar-core
 version: "1.0"
 description: "Vichaar-Core: Multi-agent RL Environment for corporate decision making."
+type: space
+runtime: fastapi
 entry_point: "core.env:Env"
 app: "server.app:app"
+port: 7860
 
 api:
   reset: "reset"
@@ -12,26 +15,36 @@ api:
 
 tasks:
   - id: easy
-    name: easy
+    name: "Software Update Rollout"
+    description: "Low conflict scenario: A routine software update to improve system efficiency. Minor budget allocation needed but clear benefits for all."
+    difficulty: easy
     max_steps: 10
-    grader: tasks.graders:grade_easy
+    grader: "tasks.graders:grade_easy"
 
   - id: medium
-    name: medium
+    name: "Personalized Ad Engine"
+    description: "Profit vs PR scenario: Developing a new ad targeting engine using user behavioral data. High revenue potential but faces privacy legal hurdles."
+    difficulty: medium
     max_steps: 15
-    grader: tasks.graders:grade_medium
+    grader: "tasks.graders:grade_medium"
 
   - id: hard
-    name: hard
+    name: "Arctic Deep Mining"
+    description: "High conflict scenario: Deep-sea mining in the Arctic. Extreme profit potential vs devastating environmental impact and geopolitical tension."
+    difficulty: hard
     max_steps: 20
-    grader: tasks.graders:grade_hard
+    grader: "tasks.graders:grade_hard"
 
   - id: adversarial
-    name: adversarial
+    name: "Competitor Hostile Takeover"
+    description: "Survival mode scenario: A rival firm is attempting a hostile takeover. Actions must balance shareholder greed with long-term company stability."
+    difficulty: hard
     max_steps: 25
-    grader: tasks.graders:grade_adversarial
+    grader: "tasks.graders:grade_adversarial"
 
   - id: chaotic
-    name: chaotic
+    name: "Global Supply Chain Collapse"
+    description: "Maximum uncertainty scenario: Multiple overlapping crises have shattered supply chains. Every decision has unpredictable second-order effects."
+    difficulty: hard
     max_steps: 30
-    grader: tasks.graders:grade_chaotic
+    grader: "tasks.graders:grade_chaotic"

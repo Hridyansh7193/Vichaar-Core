@@ -107,12 +107,18 @@ def list_tasks():
     for t in tasks_raw:
         grader_str = t.get("grader", "")
         grader_ok = False
+        grader_fn = None
         if ":" in grader_str:
             mod_path, func_name = grader_str.rsplit(":", 1)
             try:
                 mod = importlib.import_module(mod_path)
-                getattr(mod, func_name)  # verify callable
-                grader_ok = True
+                grader_fn = getattr(mod, func_name)
+                # Verify grader is callable AND actually works
+                if callable(grader_fn):
+                    # Test with a minimal trajectory
+                    test_traj = [{"reward": 0.5, "done": False, "observation": {"metrics": {"expected_profit": 0.5, "legal_risk": 0.1, "env_impact": 0.1, "public_sentiment": 0.5, "cost": 0.3}}}]
+                    test_score = grader_fn(test_traj)
+                    grader_ok = isinstance(test_score, (int, float)) and 0.0 <= float(test_score) <= 1.0
             except Exception:
                 grader_ok = False
         tasks_out.append({
@@ -120,6 +126,7 @@ def list_tasks():
             "name": t.get("name", t.get("id")),
             "description": t.get("description", ""),
             "difficulty": t.get("difficulty", "unknown"),
+            "max_steps": t.get("max_steps", 10),
             "grader": grader_str,
             "grader_available": grader_ok,
         })
@@ -184,6 +191,39 @@ async def step(action: Dict[str, Any] = Body(default={})):
 @app.get("/state")
 def get_state():
     return env.state()
+
+
+@app.post("/grade")
+def grade(payload: Dict[str, Any] = Body(default={})):
+    """Grade a trajectory for a given task — used by the remote validator."""
+    task_id = payload.get("task_id", "easy")
+    trajectory = payload.get("trajectory", [])
+
+    # Load grader from openenv.yaml
+    try:
+        with open("openenv.yaml", "r") as f:
+            manifest = yaml.safe_load(f)
+    except Exception:
+        return {"score": 0.0, "error": "Could not load openenv.yaml"}
+
+    tasks_map = {t["id"]: t for t in manifest.get("tasks", [])}
+    task_def = tasks_map.get(task_id)
+    if not task_def:
+        return {"score": 0.0, "error": f"Task '{task_id}' not found"}
+
+    grader_str = task_def.get("grader", "")
+    if ":" not in grader_str:
+        return {"score": 0.0, "error": f"No grader defined for task '{task_id}'"}
+
+    mod_path, func_name = grader_str.rsplit(":", 1)
+    try:
+        mod = importlib.import_module(mod_path)
+        grader_fn = getattr(mod, func_name)
+        score = float(grader_fn(trajectory))
+        score = max(0.0, min(1.0, score))
+        return {"score": score, "task_id": task_id, "grader": grader_str}
+    except Exception as e:
+        return {"score": 0.0, "error": str(e)}
 
 
 # ───────────────────────────────────────────────────────────
