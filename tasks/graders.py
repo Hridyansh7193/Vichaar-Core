@@ -12,7 +12,7 @@ def safe_score(traj):
 
 def grade_easy(traj):
     """Easy: Simple reward average."""
-    return max(0.0, min(1.0, safe_score(traj)))
+    return max(0.001, min(0.999, safe_score(traj)))
 
 def grade_medium(traj):
     """Medium: Penalty if agent didn't reach 'done' state."""
@@ -23,7 +23,7 @@ def grade_medium(traj):
             score *= 0.8  # 20% penalty for incomplete task
     except:
         pass
-    return max(0.0, min(1.0, score))
+    return max(0.001, min(0.999, score))
 
 def grade_hard(traj):
     """Hard: Extra weight on final profit and survival."""
@@ -42,7 +42,7 @@ def grade_hard(traj):
             score -= 0.1
     except:
         pass
-    return max(0.0, min(1.0, score))
+    return max(0.001, min(0.999, score))
 
 def grade_adversarial(traj):
     """Adversarial: Critical fail if legal_risk ever crossed 0.8."""
@@ -55,7 +55,7 @@ def grade_adversarial(traj):
                 return 0.05  # Severe penalty for governance failure
     except:
         pass
-    return max(0.0, min(1.0, score))
+    return max(0.001, min(0.999, score))
 
 def grade_chaotic(traj):
     """Chaotic: Measures stability. High rewards + low variance."""
@@ -68,4 +68,4 @@ def grade_chaotic(traj):
             score -= (variance * 0.1)
     except:
         pass
-    return max(0.0, min(1.0, score))
+    return max(0.001, min(0.999, score))
