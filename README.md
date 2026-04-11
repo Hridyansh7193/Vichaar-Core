@@ -76,18 +76,17 @@ Built for the **OpenEnv Hackathon 2026 — Meta PyTorch Team**.
 ```bash
 # Clone
 git clone https://github.com/Hridyansh7193/Vichaar-Core.git
-cd vichaar-core
+cd Vichaar-Core
 
 # Create \& activate virtual environment
 python -m venv venv
 source venv/bin/activate        # Linux / Mac
-venv\\Scripts\\activate           # Windows
+venv\Scripts\activate           # Windows
 
 # Install dependencies
-python -m pip install --upgrade pip
-pip install uv
-uv pip install -e .
-uv lock
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+pip install -e .
 ```
 
 ### Run the Validator \& Baseline Benchmark
@@ -104,7 +103,7 @@ python inference.py
 
 ```bash
 # Exposes /reset, /step, /run, and /state endpoints
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+python server/app.py
 ```
 
 Open `http://localhost:8000/docs` for the interactive API explorer.
@@ -466,21 +465,40 @@ Valid actions: `invest\_in\_safety`, `lobby\_regulators`, `pr\_campaign`, `reduc
 vichaar-core/
 │
 ├── server/
-│   ├── app.py               # FastAPI application (Uvicorn, CORS, config)
-│   └── routes.py            # /reset, /step, /run, /state endpoints
+│   └── app.py               # FastAPI application + reset/step/state endpoints
 │
-├── env/
-│   ├── vichaar\_env.py       # VichaarEnv (gymnasium.Env — reset/step/state)
-│   ├── agents.py            # Five agent classes with Q-tables + memory buffers
-│   ├── hierarchy.py         # 4-layer decision hierarchy (CEO → SafeMode → Coord → Vote)
-│   ├── reward.py            # Side-Effect Penalized RewardCalculator
-│   ├── scenarios.py         # 5 scenario configs (init state, events, modifiers)
-│   └── events.py            # Random + scheduled event engine
+├── core/
+│   ├── env.py               # VichaarEnv (gymnasium.Env — reset/step/state)
+│   └── reward.py            # Side-Effect Penalized RewardCalculator
+│
+├── decision/
+│   ├── policy.py            # 4-layer decision hierarchy (CEO → SafeMode → Coord → Vote)
+│   ├── coordinator.py       # Lookahead Coordinator
+│   ├── ceo.py               # Emergency overrides
+│   └── safemode.py          # Safe Mode implementation
+│
+├── agents/
+│   ├── base.py              # Agent classes with Q-tables + memory buffers
+│   └── factory.py           # Agent registration
+│
+├── configs/
+│   ├── env_config.py        # Scenario constants, events, and modifiers
+│   └── agent_config.py      # Agent hyperparameters
+│
+├── tasks/
+│   ├── easy.py              # Software Update Rollout scenario
+│   ├── medium.py            # Personalized Ad Engine scenario
+│   ├── hard.py              # Arctic Deep Mining scenario
+│   ├── adversarial.py       # Hostile Takeover scenario
+│   ├── chaotic.py           # Global Supply Chain Collapse scenario
+│   └── graders.py           # Evaluation graders logic
 │
 ├── inference.py             # Deterministic baseline runner (all 5 scenarios)
+├── gradio_app.py            # Gradio interactive dashboard UI
 ├── openenv.yaml             # OpenEnv environment descriptor
 ├── Dockerfile               # HuggingFace Spaces deployment
-├── pyproject.toml           # Project metadata + dependencies
+├── pyproject.toml           # Project metadata + build dependencies
+├── requirements.txt         # Project dependencies
 └── README.md                # This file
 ```
 
@@ -504,7 +522,7 @@ All variables have safe defaults; the environment runs fully deterministically w
 
 ### Scenario Configuration
 
-Key constants in `env/scenarios.py`:
+Key constants in `configs/env_config.py`:
 
 |Parameter|Default|Description|
 |-|-|-|
